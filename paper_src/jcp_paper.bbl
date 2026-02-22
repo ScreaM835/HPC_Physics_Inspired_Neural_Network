@@ -1,0 +1,148 @@
+\begin{thebibliography}{10}
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \def\href#1#2{#2} \def\path#1{#1}\fi
+
+\bibitem{baydin}
+A.~G. Baydin, B.~A. Pearlmutter, A.~A. Radul, J.~M. Siskind, Automatic
+  differentiation in machine learning: A survey, J. Mach. Learn. Res. 18~(1)
+  (2017) 5595–5637.
+
+\bibitem{RAISSI2019686}
+M.~Raissi, P.~Perdikaris, G.~Karniadakis,
+  \href{https://www.sciencedirect.com/science/article/pii/S0021999118307125}{Physics-informed
+  neural networks: A deep learning framework for solving forward and inverse
+  problems involving nonlinear partial differential equations}, Journal of
+  Computational Physics 378 (2019) 686--707.
+\newblock \href {https://doi.org/https://doi.org/10.1016/j.jcp.2018.10.045}
+  {\path{doi:https://doi.org/10.1016/j.jcp.2018.10.045}}.
+\newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S0021999118307125}
+
+\bibitem{Bellman}
+R.~Bellman,
+  \href{https://www.science.org/doi/abs/10.1126/science.153.3731.34}{Dynamic
+  programming}, Science 153~(3731) (1966) 34--37.
+\newblock \href
+  {http://arxiv.org/abs/https://www.science.org/doi/pdf/10.1126/science.153.3731.34}
+  {\path{arXiv:https://www.science.org/doi/pdf/10.1126/science.153.3731.34}},
+  \href {https://doi.org/10.1126/science.153.3731.34}
+  {\path{doi:10.1126/science.153.3731.34}}.
+\newline\urlprefix\url{https://www.science.org/doi/abs/10.1126/science.153.3731.34}
+
+\bibitem{font}
+A.~Ferrer-Sánchez, J.~D. Martín-Guerrero, R.~R. de~Austri, A.~Torres-Forné,
+  J.~A. Font, Gradient-annihilated pinns for solving riemann problems:
+  Application to relativistic hydrodynamics (2023).
+\newblock \href {http://arxiv.org/abs/2305.08448} {\path{arXiv:2305.08448}}.
+
+\bibitem{haddou2023quasinormal}
+M.~A. Haddou, Quasi-normal modes of near-extremal black holes in drgt massive
+  gravity using physics-informed neural networks (pinns) (2023).
+\newblock \href {http://arxiv.org/abs/2303.02395} {\path{arXiv:2303.02395}}.
+
+\bibitem{mcculloch1943logical}
+W.~S. McCulloch, W.~Pitts, A logical calculus of ideas immanent in nervous
+  activity, Bulletin of Mathematical Biophysics 5 (1943) 115--133.
+
+\bibitem{rosenblatt1958perceptron}
+F.~Rosenblatt, \href{https://doi.org/10.1037/h0042519}{The perceptron: A
+  probabilistic model for information storage and organization in the brain},
+  Psychological Review 65~(6) (1958) 386--408.
+\newblock \href {https://doi.org/10.1037/h0042519}
+  {\path{doi:10.1037/h0042519}}.
+\newline\urlprefix\url{https://doi.org/10.1037/h0042519}
+
+\bibitem{pmlr-v9-glorot10a}
+X.~Glorot, Y.~Bengio,
+  \href{https://proceedings.mlr.press/v9/glorot10a.html}{Understanding the
+  difficulty of training deep feedforward neural networks}, in: Y.~W. Teh,
+  M.~Titterington (Eds.), Proceedings of the Thirteenth International
+  Conference on Artificial Intelligence and Statistics, Vol.~9 of Proceedings
+  of Machine Learning Research, PMLR, Chia Laguna Resort, Sardinia, Italy,
+  2010, pp. 249--256.
+\newline\urlprefix\url{https://proceedings.mlr.press/v9/glorot10a.html}
+
+\bibitem{Goodfellow-et-al-2016}
+I.~Goodfellow, Y.~Bengio, A.~Courville, Deep Learning, MIT Press, 2016,
+  \url{http://www.deeplearningbook.org}.
+
+\bibitem{rumelhart1986learning}
+D.~E. Rumelhart, G.~E. Hinton, R.~J. Williams, Learning representations by
+  back-propagating errors, Nature 323 (1986) 533--536.
+\newblock \href {https://doi.org/10.1038/323533a0}
+  {\path{doi:10.1038/323533a0}}.
+
+\bibitem{kingma2017adam}
+D.~P. Kingma, J.~Ba, Adam: A method for stochastic optimization (2017).
+\newblock \href {http://arxiv.org/abs/1412.6980} {\path{arXiv:1412.6980}}.
+
+\bibitem{YU2022114823}
+J.~Yu, L.~Lu, X.~Meng, G.~E. Karniadakis,
+  \href{https://www.sciencedirect.com/science/article/pii/S0045782522001438}{Gradient-enhanced
+  physics-informed neural networks for forward and inverse pde problems},
+  Computer Methods in Applied Mechanics and Engineering 393 (2022) 114823.
+\newblock \href {https://doi.org/https://doi.org/10.1016/j.cma.2022.114823}
+  {\path{doi:https://doi.org/10.1016/j.cma.2022.114823}}.
+\newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S0045782522001438}
+
+\bibitem{freire2022computational}
+P.~J. Freire, S.~Srivallapanondh, A.~Napoli, J.~E. Prilepsky, S.~K. Turitsyn,
+  Computational complexity evaluation of neural network applications in signal
+  processing (2022).
+\newblock \href {http://arxiv.org/abs/2206.12191} {\path{arXiv:2206.12191}}.
+
+\bibitem{Chandrasekhar_1975}
+C.~Subrahmanyan, D.~S., The quasi-normal modes of the schwarzschild black hole,
+  Proc. R. Soc. Lond. 344~(1639) (1975) 441–452.
+\newblock \href {https://doi.org/10.1098/rspa.1975.0112}
+  {\path{doi:10.1098/rspa.1975.0112}}.
+
+\bibitem{Kokkotas1999-rw}
+K.~D. Kokkotas, B.~G. Schmidt, {Quasi-Normal} modes of stars and black holes,
+  Living Reviews in Relativity 2~(1) (1999) 2.
+
+\bibitem{lu2021deepxde}
+L.~Lu, X.~Meng, Z.~Mao, G.~E. Karniadakis, {DeepXDE}: A deep learning library
+  for solving differential equations, SIAM Review 63~(1) (2021) 208--228.
+\newblock \href {https://doi.org/10.1137/19M1274067}
+  {\path{doi:10.1137/19M1274067}}.
+
+\bibitem{WU2023115671}
+C.~Wu, M.~Zhu, Q.~Tan, Y.~Kartha, L.~Lu,
+  \href{https://www.sciencedirect.com/science/article/pii/S0045782522006260}{A
+  comprehensive study of non-adaptive and residual-based adaptive sampling for
+  physics-informed neural networks}, Computer Methods in Applied Mechanics and
+  Engineering 403 (2023) 115671.
+\newblock \href {https://doi.org/https://doi.org/10.1016/j.cma.2022.115671}
+  {\path{doi:https://doi.org/10.1016/j.cma.2022.115671}}.
+\newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S0045782522006260}
+
+\bibitem{Wang2021}
+S.~Wang, Y.~Teng, P.~Perdikaris,
+  \href{https://doi.org/10.1137/20M1318043}{Understanding and mitigating
+  gradient flow pathologies in physics-informed neural networks}, SIAM Journal
+  on Scientific Computing 43~(5) (2021) A3055--A3081.
+\newblock \href {http://arxiv.org/abs/https://doi.org/10.1137/20M1318043}
+  {\path{arXiv:https://doi.org/10.1137/20M1318043}}, \href
+  {https://doi.org/10.1137/20M1318043} {\path{doi:10.1137/20M1318043}}.
+\newline\urlprefix\url{https://doi.org/10.1137/20M1318043}
+
+\bibitem{Wang2022Causality}
+S.~Wang, S.~Sankaran, P.~Perdikaris,
+  \href{https://arxiv.org/abs/2203.07404}{Respecting causality is all you need
+  for training physics-informed neural networks}, arXiv.org (Mar 2022).
+\newline\urlprefix\url{https://arxiv.org/abs/2203.07404}
+
+\bibitem{WANG2021113938}
+S.~Wang, H.~Wang, P.~Perdikaris,
+  \href{https://www.sciencedirect.com/science/article/pii/S0045782521002759}{On
+  the eigenvector bias of fourier feature networks: From regression to solving
+  multi-scale pdes with physics-informed neural networks}, Computer Methods in
+  Applied Mechanics and Engineering 384 (2021) 113938.
+\newblock \href {https://doi.org/https://doi.org/10.1016/j.cma.2021.113938}
+  {\path{doi:https://doi.org/10.1016/j.cma.2021.113938}}.
+\newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S0045782521002759}
+
+\end{thebibliography}

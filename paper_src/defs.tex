@@ -1,0 +1,125 @@
+%!TEX root=paper.tex
+\def\ltsima{$\; \buildrel < \over \sim \;$}
+\def\ltsim{\lower.5ex\hbox{\ltsima}}
+\def\gtsima{$\; \buildrel > \over \sim \;$}
+\def\gtsim{\lower.5ex\hbox{\gtsima}}
+\def\simlt{\mathrel{\hbox{\rlap{\hbox{\lower4pt\hbox{$\sim$}}}\hbox{$<$}}}}
+\def\simgt{\mathrel{\hbox{\rlap{\hbox{\lower4pt\hbox{$\sim$}}}\hbox{$>$}}}}
+\def\etal{{\it et al.}}
+
+
+\def\newacronym#1#2#3{\gdef#1{#3 (#2)\gdef#1{#2}}}
+
+\def\PDE#1{partial differential equation#1 (PDE#1)\gdef\PDE{PDE}}
+\def\FD#1{finite difference#1 (FD#1)\gdef\FD{FD}}
+\def\pinn#1{Physics-Informed Neural Network#1 (PINN#1)\gdef\pinn{PINN}}
+\def\pn#1{post-Newtonian#1 (PN#1)\gdef\pn{PN}}
+\def\qnm#1{quasi-normal mode#1 (QNM#1)\gdef\qnm{QNM}}
+\def\isco#1{innermost stable circular orbit#1 (ISCO#1)\gdef\isco{ISCO}}
+\def\eos#1{equation#1 of state (EOS#1)\gdef\eos{EOS}}
+\def\tov#1{Tolman-Oppenheimer-Volkoff#1 (TOV#1)\gdef\tov{TOV}}
+\def\ns#1{neutron star#1 (NS#1)\gdef\ns{NS}}
+\def\gw#1{gravitational wave#1 (GW#1)\gdef\gw{GW}}
+\def\WD#1{white dwarf#1 (WD#1)\gdef\WD{WD}}
+\def\wdbh#1{white dwarf -- black hole#1 (WDBH#1)\gdef\wdbh{WDBH}}
+\def\bbh#1{binary black holes#1 (BBH#1)\gdef\bbh{BBH}}
+\def\bhns#1{black hole -- neutron star#1 (BHNS#1)\gdef\bhns{BHNS}}
+\def\nsns#1{neutron star -- neutron star#1 (NSNS#1)\gdef\nsns{NSNS}}
+\def\emri#1{Extreme Mass-Ratio Inspiral#1 (EMRI#1)\gdef\emri{EMRI}}
+\def\emrb#1{Extreme Mass-Ratio Binaries#1 (EMRB#1)\gdef\emrb{EMRB}}
+\def\sgrb#1{short gamma-ray burst#1 (SGRB#1)\gdef\sgrb{SGRB}}
+\def\grb#1{gamma-ray burst#1 (GRB#1)\gdef\grb{GRB}}
+\def\imbh#1{intermediate mass black hole#1 (IMBH#1)\gdef\imbh{IMBH}}
+\def\smbh#1{supermassive black hole#1 (SMBH#1)\gdef\smbh{SMBH}}
+\def\bh#1{black hole#1 (BH#1)\gdef\bh{BH}}
+\def\ulx#1{ultra-luminous x-ray source#1 (ULX#1)\gdef\ulx{ULX}}
+\def\lmxbs{low-mass x-ray Binaries (LMXBs)\gdef\lmxbs{LMXBs}\gdef\lmxb{LMXB}}
+\def\lmxb{low-mass x-ray Binary (LMXB)\gdef\lmxbs{LMXBs}\gdef\lmxb{LMXB}}
+\def\dns#1{double neutron star#1 (DNS#1)\gdef\dns{DNS}}
+\def\mots#1{marginally outer trapped surface#1 (MOTS#1)\gdef\mots{MOTS}}
+
+
+
+\def\cqg#1#2#3{{\it Class. Quant. Grav.} {\bf #1}, #1 (#3)}
+\def\prl#1#2#3{{\it Phys. Rev. Lett.} {\bf #1}, #2 (#3)}
+\def\prd#1#2#3{{\it Phys. Rev.} D {\bf #1}, #2 (#3)}
+\def\apj#1#2#3{{\it Astrophys. J.} {\bf #1}, #2 (#3)}
+\def\npb#1#2#3{{\it Nucl. Phys.} B {\bf #1}, #2 (#3)}
+\def\ijmpc#1#2#3{{\it I.J.M.P.} C {\bf #1}, #2 (#3)}
+\def\mnras#1#2#3{{\it M.N.R.A.S.} {\bf #1}, #2 (#3)}
+
+\def\jcqg#1#2#3{{\it Class. Quant. Grav.} {\bf #1}, #2 (#3)}
+\def\jprl#1#2#3{{\it Phys. Rev. Lett.} {\bf #1}, #2 (#3)}
+\def\jprd#1#2#3{{\it Phys. Rev.} D {\bf #1}, #2 (#3)}
+ \def\japj#1#2#3{{\it Astrophys. J.} {\bf #1}, #2 (#3)}
+\def\japjl#1#2#3{{\it Astrophys. J. Lett.} {\bf #1}, #2 (#3)}
+\def\jnpb#1#2#3{{\it Nucl. Phys.} B {\bf #1}, #2 (#3)}
+\def\jijmpc#1#2#3{{\it I.J.M.P.} C {\bf #1}, #2 (#3)}
+\def\jmnras#1#2#3{{\it M.N.R.A.S.} {\bf #1}, #2 (#3)}
+
+\newcommand\mathnew{\mathsurround=0pt}
+\newcommand{\KMS}{\mbox{km s}^{-1}}
+\newcommand{\cc}[1]{{#1}^{\ast}} % complex conjugate
+\newcommand{\msun}[0]{{\text{M}_{\odot}}}
+
+\def\simov#1#2{\lower .5pt\vbox{\baselineskip0pt \lineskip-.5pt
+        \ialign{$\mathnew#1\hfil##\hfil$\crcr#2\crcr\sim\crcr}}}
+\def\MPR#1{{\it Moving Puncture Recipe}#1 (MPR#1)\gdef\MPR{MPR}}
+\def\sun{\hbox{$\odot$}}         % sun
+\def\bh#1{black hole#1 (BH#1)\gdef\bh{BH}}
+\def\ahz#1{apparent horizon#1 (AH#1)\gdef\ahz{AH}}
+\def\bbh#1{binary black hole#1 (BBH#1)\gdef\bbh{BBH}}
+\def\qnm#1{quasi-normal mode#1 (QNM#1)\gdef\qnm{QNM}}
+\def\isco#1{innermost stable circular orbit#1 (ISCO#1)\gdef\isco{ISCO}}
+\def\madm{M_\text{ADM}}
+
+\def\mayakranc#1{\textsc{MayaKranc}#1}
+\def\maya#1{\textsc{Maya}#1}
+\def\et#1{\textsc{EinsteinToolkit}#1}
+\def\twopunctures#1{\textsc{2Punctures}#1}
+\def\kranc#1{\textsc{Kranc}#1}
+\def\whisky#1{\textsc{Whisky}#1}
+\def\maya#1{\textsc{Maya}#1}
+\def\grsph#1{\textsc{Grsph}#1}
+\def\cactus#1{\textsc{Cactus}#1}
+\def\carpet#1{\textsc{Carpet}#1}
+\def\teukolsky#1{\textsc{Teukolsky}#1}
+\def\dendro#1{\textsc{Dendro}#1}
+\def\ahf#1{\textsc{AHFinderDirect}#1}
+
+\def\paren#1{\left( #1 \right)}
+\def\brace#1{\left\{ #1 \right\}}
+\def\bra#1{\left[ #1 \right]}
+
+% \def\loosespacing{\topsep=5pt\itemsep=2pt\itemindent=0pt\labelwidth=11pt\leftmargin=11pt\parsep=0pt}
+% \def\tightspacing{\topsep=2pt\itemsep=1pt\itemindent=0pt\labelwidth=11pt\leftmargin=11pt\parsep=0pt}
+
+% \def\section{\@startsection {section}{1}{\z@}{-1.0ex plus
+%     -0.15ex minus -.1ex}{0.4ex plus .1ex}{\large\bf\raggedright}}
+% \def\subsection{\@startsection{subsection}{2}{\z@}{-1.0ex plus
+%     -0.15ex minus -.1ex}{0.4ex plus .1ex}{\large\bf\raggedright}}
+% \def\subsubsection{\@startsection{subsubsection}{3}{\z@}{-0.5ex plus
+%    -0.25ex minus -.25ex}{0.5ex plus .2ex}{\normalsize\bf\raggedright}}
+% \def\paragraph{\@startsection{paragraph}{4}{\z@}{0.5ex plus
+%    0.25ex minus .25ex}{-1em}{\normalsize\em}}
+% \def\subparagraph{\@startsection{subparagraph}{5}{\z@}{1.3ex plus
+%    0.5ex minus .2ex}{-1em}{\normalsize\em}}
+% \def\subsubsubsection{\vskip 5pt{\noindent\normalsize\rm\raggedright}}
+
+\def\aj{Astronomical Journal }                 % Astronomical Journal
+\def\apj{Astrophysical Journal }                % Astrophysical Journal
+\def\apjl{Astrophysical Journal Letters}             % Astrophysical Journal, Letters
+\def\pasj{PASJ }
+\def\apjs{ApJS }              % Astrophysical Journal, Supplement
+\def\mnras{MNRAS }            % Monthly Notices of the RAS
+\def\prd{Physical Review D }       % Physical Review D
+\def\prl{Physical Review Letters }    % Physical Review Letters
+\def\cqg{Classical \& Quantum Gravity }%Classical and Quantum Gravity
+\def\nat{Nature}              % Nature
+\def\physrep{Physics Reports} % Physics Reports
+\def\na{New Astronomy}          % New Astronomy
+\def\aapr{Astronomy \& Astrophysics Reviews}    %Astronomy and Astrophysics Reviews
+\def\araa{Annual Reviews of Astronomy \& Astrophysics}
+\def\aap{Astronomy \& Astrophysics}
+\def\tde#1{tidal disruption event#1 (TDE#1)\gdef\tde{TDE}}
+\def\whd#1{white dwarf#1 (WD#1)\gdef\whd{WD}}

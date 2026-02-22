@@ -1,0 +1,792 @@
+Calculating Quasi-Normal Modes of Schwarzschild
+Black Holes with Physics Informed Neural Networks
+Nirmal Patel, Aycin Aykutalp, Pablo Laguna
+
+arXiv:2401.01440v1 [gr-qc] 2 Jan 2024
+
+a
+
+Center of Gravitational Physics and Department of Physics, The University of Texas at
+Austin, Austin, TX, 78712, USA
+
+Abstract
+Machine learning, particularly neural networks, has rapidly permeated most
+activities and work where data has a story to tell. Recently, deep learning has
+started to be used for solving differential equations with input from physics,
+also known as Physics-Informed Neural Networks (PINNs). We present a
+study showing the efficacy of PINNs for solving the Zerilli and the ReggeWheeler equations in the time domain to calculate the quasi-normal oscillation modes of a Schwarzschild black hole. We compare the extracted modes
+with those obtained with finite difference methods. Although the PINN
+results are competitive, with a few percent differences in the quasi-normal
+modes estimates relative to those computed with finite difference methods,
+the real power of PINNs will emerge when applied to large dimensionality
+problems.
+Keywords: Scientific Machine Learning, Physics Informed Neural Networks
+(PINNs), Numerical Relativity
+1. Introduction
+Deep learning has grown exponentially in the last couple of decades, with
+an astonishing range of applications in computer vision, natural language
+processing, autonomous vehicles, and many more. Deep learning has also
+made its way into the scientific fields that deal with complex dynamic systems involving various input variables using automatic differentiation [1]. As
+Raissi et al. [2] have pointed out, feeding physics to the neural network
+improves its accuracy while making it data-efficient. They coined the term
+“Physics Informed Neural Networks”. There is strong evidence that PINNs
+
+Preprint submitted to Journal of Computational Physics
+
+January 4, 2024
+
+could potentially provide a new insight to tackle the curse of dimensionality,
+as introduced by Bellman [3], which is still a hindrance for current numerical
+methods.
+PINNs have been recently utilized in gravitational physics problems. They
+have been used to solve Riemann problems applied to relativistic hydrodynamics [4], to compute the quasi-normal modes (QNMs) of black holes in de
+Rham-Gabadadze-Tolley massive gravity, but in this case, the computation
+was carried out in the frequency domain [5].
+In this work, we present a study showing the efficacy of PINNs for solving
+the Zerilli and the Regge-Wheeler equations in the time domain to compute
+the QNMs of a Schwarzschild black hole (BH). We compare the extracted
+modes with those obtained with finite difference (FD) methods. We also show
+the accuracy of PINNs for this problem in terms of its scaling with the number
+of nodes and layers. We found that the PINNs results are competitive, with
+a few percent differences in the QNMs relative to those with FD methods.
+The paper is organized as follows. In Sec. 2, we present a brief description
+of neural networks. The description is extended to PINNs in Sec. 3. In
+Sec. 4, we briefly summarize the equations governing the perturbation of a
+Schwarzschild BH and its QNMs. In Sec. 5, we describe the FD methodology
+and PINN architecture used to solve the Zerilli and Regge-Wheeler equations.
+Results are given in Sec. 6, with conclusions in Sec. 7.
+2. Neural Networks: Fundamentals and Application in PINNs
+Neural networks are computational frameworks inspired by the biological neural networks of our brains [6]. At their core, they consist of layers
+of nodes or neurons interconnected in a way that allows for complex data
+processing and pattern recognition. This makes them particularly suited for
+tasks ranging from simple classification to complex physics problems.
+Neural networks consist of an input layer, multiple hidden layers, and
+an output layer. Each layer contains neurons that process incoming data.
+Early neural networks used simple units called Threshold Logic Units (TLUs,
+[7]). Modern networks use more advanced artificial neurons, which apply
+continuous, differentiable activation functions, allowing for more complex
+and nuanced data modeling.
+Learning in a neural network is a systematic process involving several
+interconnected steps. These steps enable the network to adjust its internal parameters (weights and biases) based on the data it processes, thereby
+2
+
+improving its performance in tasks such as classification or regression.
+• Initialization: Before learning begins, the neural network’s weights
+and biases are initialized. This can be done randomly or using specific
+initialization techniques like Xavier or He initialization. Initialization is
+crucial as it affects the convergence speed and the ability of the network
+to reach an optimal solution [8].
+• Forward Propagation Data flows from the input through the hidden
+layers to the output, with each neuron computing a weighted sum of
+its inputs followed by an activation function [9].
+– Input Layer : The learning process begins with input data being
+fed into the network. Each neuron in the input layer represents a
+feature of the input data.
+– Hidden Layers: The data then passes through one or more hidden
+layers. In each layer, the neurons perform a weighted sum of their
+inputs, followed by an activation function. The activation function
+introduces non-linearity, allowing the network to learn complex
+patterns.
+– Output Layer : The final layer produces the network’s output. The
+nature of this output depends on the task (e.g., a single value for
+regression, probability scores for classification).
+• Loss Calculation: A loss function quantifies the error between the
+network’s predictions and actual data, crucial for guiding the learning process. Once the network produces an output, the loss function
+calculates the error. This error is the difference between the network’s
+prediction and the actual target values. Common loss functions include
+Mean Squared Error (MSE) for regression tasks and Cross-Entropy for
+classification tasks.
+• Backpropagation: Backpropagation is the process through which the
+network learns [10]. The goal is to minimize the loss by adjusting
+the weights and biases. The network computes the gradient of the
+loss function, propagating this information back through the network
+to inform how weights should be adjusted. It involves computing the
+gradient of the loss function with respect to each weight and bias in the
+network. This computation uses the chain rule of calculus, a method
+3
+
+known as the gradient descent. The gradients indicate how much and
+in which direction the weights and biases should be adjusted to reduce
+the loss.
+• Weight Update: Using the gradients calculated during backpropagation, the weights and biases are updated [11]. This step is crucial for
+the learning process. The magnitude of the update is determined by
+the learning rate, a hyperparameter that dictates how big a step should
+be taken towards the minimum of the loss function. Optimizers like
+SGD (Stochastic Gradient Descent), Adam, or RMSprop are used to
+perform this update. They differ in how they use the gradient information to adjust the weights (e.g., some use momentum, others adjust
+learning rates adaptively).
+The output from forward propagation is used to calculate how far off the
+predictions are from the actual values. The loss guides how the model should
+adjust its parameters. It’s the starting point for backpropagation, determining the direction for the gradient descent. The gradients from backpropagation are used directly to update the weights in a direction that minimizes the
+loss. Updated weights affect the next round of forward propagation, leading
+to different outputs and a reduced loss. The entire process (forward propagation, loss calculation, backpropagation, weight update) is repeated for a
+number of iterations or epochs over the training dataset. With each iteration,
+the network’s predictions become more accurate, and the loss decrease. The
+learning continues until the loss converges to a minimum value, a pre-defined
+number of epochs is reached, or another stopping criterion is met. This cyclic
+process enables the neural network to learn from data, gradually improving
+its predictions through successive iterations.
+In the context of PINNs, neural networks are tailored to solve physics
+problems, particularly involving differential equations. PINNs integrate physical laws into the learning process, improving the network’s ability to generalize and learn from limited data. This integration is achieved by constructing
+a loss function that not only minimizes the difference between predicted and
+actual outputs but also ensures compliance with the physical laws governing the system. For instance, when applied to an initial-boundary value
+problem, PINNs aim to construct an approximate solution to a given partial
+differential equation (partial differential equation (PDE)), respecting initial
+and boundary conditions. This is accomplished by minimizing a loss function
+4
+
+that includes the residuals of the PDE and these conditions. The network
+uses layers (denoted as L dense layers) to approximate the solution, with
+each layer involving weight matrices, bias vectors, and activation functions.
+3. Physics Informed Neural Networks
+When applied to an initial-boundary value problem, the PINN method
+aims at constructing an approximate solution to a PDE, given initial and
+boundary conditions, by minimizing a loss function that involves the residuals
+of the PDE and the initial and boundary conditions.
+Specifically, we consider the following hyperbolic PDE for the function
+Φ(x, t)
+∂ 2Φ
+∂ 2Φ
+∂ 2Φ
++ C 2 + D[Φ] = 0,
+(1)
+A 2 + 2B
+∂t
+∂t∂x
+∂x
+in a domain X = [xmin , xmax ]×[tmin , tmax ]. Here, D is a first-order differential
+operator, and the coefficients, in general, depend on x and satisfy B 2 −AC >
+(x, tmin ) are provided as initial conditions.
+0. The values of Φ(x, tmin ) and ∂Φ
+∂t
+For boundary conditions, we impose L[Φ] = 0 at left boundary (xmin , t)
+and R[Φ] = 0 at right boundary (xmax , t), where L and R are first order
+differential operators.
+The PINN approximated solution using L dense layers will be
+Φθ (X) = WL σ L (...W1 σ 1 (W0 X + b0 ) + b1 ...) + bL ,
+
+(2)
+
+where θ is the trainable parameter vector, Wi are weight matrices, bi are
+bias vectors, and σ i are activation functions.
+The PDE residual of the PINN approximate is
+rθ = A
+
+∂ 2 Φθ
+∂ 2 Φθ
+∂ 2 Φθ
++
+2B
++
+C
++ D[Φθ ].
+∂t2
+∂t∂x
+∂x2
+
+(3)
+
+Thus, the corresponding loss function is
+X rθ (x, t),
+Lr (θ) =
+|Nr |
+n
+
+2
+2
+
+,
+
+(4)
+
+r
+
+where the sum is over Nr discrete points in the interior of the domain X,
+and . 2 donates L2 norm.
+5
+
+The accuracy of PINN can be increased by adding derivatives of rθ . Such
+PINN is known as “Gradient-enhanced PINN” [12]. The loss functions involving the derivatives of residuals are
+Lrx (θ) =
+
+X
+
+|Nr |
+
+nr
+
+and
+Lrt (θ) =
+
+2
+∂rθ
+(x, t) 2
+∂x
+
+X
+
+2
+∂rθ
+(x, t) 2
+∂t
+
+|Nr |
+
+nr
+
+,
+
+(5)
+
+.
+
+(6)
+
+The loss function for the initial conditions are
+X Φθ (x, tmin ) − Φ(x, tmin )
+Lic (θ) =
+|Ni |
+n
+
+2
+2
+
+,
+
+(7)
+
+i
+
+and
+Liv (θ) =
+
+X
+
+∂Φθ
+(x, tmin )
+∂t
+
+− ∂Φ
+(x, tmin )
+∂t
+|Ni |
+
+ni
+
+2
+2
+
+,
+
+(8)
+
+where the sums are over Ni discrete points (x, tmin ) ∈ X. And, at the left
+and right boundaries, the loss terms read
+X L[Φθ ]
+Lbl (θ) =
+|Nb |
+n
+
+2
+2
+
+,
+
+(9)
+
+,
+
+(10)
+
+b
+
+and
+X R[Φθ ]
+Lbr (θ) =
+|Nb |
+n
+
+2
+2
+
+b
+
+where the sums are over Nb points (xmin , t) ∈ X for the sum in Eq. (9) and
+Nb points (xmax , t) ∈ X for the sum in Eq. (10).
+Finally, the vector of loss functions will be
+L(θ) =[Lr (θ), Lrx (θ), Lrt (θ), Lic (θ),
+Liv (θ), Lbl (θ), Lbr (θ)] .
+
+(11)
+
+Thus, given the weight vector
+λ = [λr , λrx , λrt , λic , λiv , λbl , λbr ] ,
+6
+
+(12)
+
+the loss function to be minimized would be
+L(θ) = λ · L(θ).
+
+(13)
+
+The weight parameters are chosen so that the components of the loss function
+vector (11) have comparable values to minimize bias.
+The motivation for using PINNs to solve PDEs is because of their potential advantage for problems with large computational complexity. For a PDE
+with di dimensional input and single dimensional output, the complexity of
+a PINN with L homogeneous dense hidden layers with n nodes, Nd data
+points, and Nit iterations will be O(Nd Nit (n(din + 1) + n2 (L − 1))) [13].
+4. Gravitational Perturbations of Schwarzschild Black Holes
+When a BH is slightly perturbed, the gravitational radiation it emits as it
+settles down (ring-down) has characteristic frequencies and decay times independent of the process that gave rise to the gravitational waves (GWs). The
+emission is in the form of QNMs. The modes are a family of exponentially
+damped sinusoidals with frequencies and decaying times directly related to
+the “hairs” of the BH, namely its mass, spin, and charge [14].
+We will focus only on a non-spinning and uncharged BH, also called
+Schwarzschild BH, in which the only hair in the BH is its mass M . To study
+the perturbations of a Schwarzschild BH, one starts with the background
+space-time metric
+
+
+2M
+2
+0
+µ
+ν
+dt2
+(14)
+ds = gµν dx dx = − 1 −
+r
+
+−1
+2M
++
+1−
+dt2 + r2 dΩ2 ,
+r
+where dΩ2 = dθ2 + sin2 θ dφ2 . One then adds a perturbation of the form
+0
+gµν = gµν
++ hµν , and the Einstein equations reduce to a set of linear partial
+differential equations for hµν . After decomposing hµν in tensor spherical
+harmonics and with a clever combination of components of hµν , one arrives
+at a single master equation for a scalar quantity Φ decomposed as [15]
+Φ(t, r, θ, φ) =
+
+1X
+Φℓm (t, r) Yℓm (θ, φ) .
+r ℓm
+7
+
+(15)
+
+Since we only consider a spherically symmetric background, the perturbation
+will not depend on φ, and m can be ignored. The master equation for each
+Φℓ reads
+∂2
+∂2
+− 2 Φℓ + 2 Φℓ + Vℓ (r)Φℓ = 0,
+(16)
+∂t
+∂x
+where x is the “tortoise” radial coordinate defined within r ∈ (2M, ∞) by
+
+ r
+−1 ;
+(17)
+x = r + 2 M ln
+2M
+thus, x ∈ (−∞, ∞). For simplicity, we will drop the ℓ label in Φ.
+If the interest is with “axial” or odd-parity perturbations, namely those
+that transform under a parity operation as (−1)ℓ+1 , the potential V (r) is
+given by
+
+
+
+2(n + 1) 2(1 − s2 )M
+2M
++
+,
+(18)
+V (r) = 1 −
+r
+r2
+r3
+with 2 n = (ℓ − 1)(ℓ + 2) and s = 0, 1, and 2 for scalar, electromagnetic, and
+gravitational perturbations, respectively. For our case, we set s = 2. The
+master equation, in this case, is known as the Regge-Wheeler equation.
+If, on the other hand, one is interested in “polar” or even-parity perturbations that transform under a parity operation as (−1)ℓ , the potential V is
+given by
+
+
+1
+2M
+(19)
+V (r) =
+1−
+3
+r
+r (nr + 3M )2
+[2 n2 (n + 1)r3 + 6 n2 M r2 + 18 n M 2 r + 18M 3 ]
+For this case, the master equation is called the Zerilli equation.
+The potentials have a barrier around x ∼ 1. They also vanish as one
+approaches the BH horizon, r → 2 M or x → −∞, and far away from the
+hole, i.e., when r and x → ∞. A transformation connects the Zerilli and
+Regge-Wheeler equations [14]. Therefore, both equations yield the same
+QNMs. The Zerilli equation was originally solved in the frequency domain
+to compute QNMs [14]. Table 1 shows the frequencies ω and decay times τ
+for the most dominant ℓ modes in which Φ ∝ e−t/τ sin (ω t).
+We will solve both the Zerilli and Regge-Wheeler in the time domain
+with both PINNs and for comparison with FD methods. As in the frequency
+domain case, we require that the perturbations are outgoing into the BH
+horizon and outgoing at infinity [14]. Since the potential vanishes at the
+8
+
+ℓ
+ωM
+τ /M
+2 0.37367 11.241
+3 0.59944 10.787
+4 0.80918 10.620
+Table 1: QNM parameters of a Schwarzschild BH in which Φℓ ∝ e−t/τ sin (ω t)
+
+horizon and spatial infinity, the master equation Eq. (15) reduces to a wave
+equation, and we impose the following boundary conditions:
+
+
+∂
+∂
+−
+Φ = 0,
+(20)
+∂t ∂x
+as x → −∞, i.e. into the BH, and
+
+
+∂
+∂
++
+Φ = 0.
+∂t ∂x
+as x → ∞. We choose as initial conditions
+
+
+(x − x0 )2
+Φ(x) = A exp −
+σ2
+∂Φ
+(x − x0 )2
+(x) = 2
+Φ(x) .
+∂t
+σ2
+
+(21)
+
+(22)
+(23)
+
+That is, we initially have a Gaussian outgoing pulse with amplitude A, width
+σ, and centered at x0 . We set A = 1, x0 = 4 M , and σ = 5 M . All quantities
+are reported in units of M .
+5. Computational Methodology
+For solutions obtained with FD methods, we use a uniform mesh with
+Nx = 1, 000 grid points in a domain x/M ∈ [−50, 150], i.e., grid-spacing
+∆x = 0.2 M . Spatial differentiation is approximated with 2nd-order FD
+operators. We use a method of lines with time updates via a 4th-order
+Runge-Kutta method with a Courant factor of 0.5. The time-step is then
+∆t = 0.5 ∆X = 0.1 M . We evolve for a time span t/M ∈ [0, 50]. Thus, we
+take Nt = 500 steps, which translates into NF = Nx Nt = 5 × 105 space-time
+grid points.
+9
+
+For the PINNs solutions, we use Ni = 800, Nb = 400, and Nr = 32, 000,
+which translates into NP = 2Nb + Ni + Nr = 33, 600 space-time points
+where the residuals are evaluated. The input nodes are x and t, with Φθ
+the output node. To prevent PINN from adapting a blowing-up solution, we
+enforce a bound by applying the output transformation Φθ = A tanh(Φθ )
+as a constraint. The network has four hidden layers with widths [80, 40,
+20, 10]. The number of trainable parameters are dim(θ) = 2 · 80 + 80 +
+80 · 40 + 40 + 40 · 20 + 20 + 20 · 10 + 10 + 10 · 1 + 1 = 4, 521. We use a
+Glorot uniform initializer and tanh activation throughout the network. The
+PINN is trained using the ADAM optimizer (10,000 iterations) followed by
+the L-BFGS optimizer (15,000 iterations). For the weight vector λ given in
+Eq. 12, we use [100, 100, 100, 1, 100, 1, 1]. The weight λiv = 100 is because
+of the phase problem that will be discussed in the next section. Lastly, we
+use DeepXDE’s residual points re-sampling feature to get a fresh batch of
+training points after every 100 iterations [16].
+6. Results
+We used three metrics for analyzing errors and deviations between PINNs
+and FD results: Root-Mean-Squared-Deviation (RMSd):
+sP
+2
+NF (Φ − Φθ )
+,
+(24)
+RMSD =
+NF
+Mean-Absolute-Deviation (MAD):
+MAD =
+
+1 X
+|Φ − Φθ |,
+NF N
+
+(25)
+
+F
+
+and Relative L2 (RL2) norm:
+sP
+RL2 =
+
+− Φθ )2
+,
+2
+NF Φ
+
+NF (Φ
+
+P
+
+(26)
+
+where the functions are evaluated at the NF space-time grid points used to
+construct the FD solution. The values of these metrics are shown in Table 2.
+It is evident from the values of RMSD and MAD that the PINN method
+produces results close to those from FD methods. The Relative L2 error is
+high because most data points are zero. The formula of Relative L2 error is
+10
+
+RMSD
+MAD
+RL2
+
+Zerilli
+0.0370
+0.0182
+0.2806
+
+Regge-Wheeler
+0.0333
+0.0187
+0.2359
+
+Table 2: RMSD, MAD, and RL2 deviations between the FD and PINN solutions.
+
+It is evident from Table 2 that PINN results are very close to those from
+FD, with low RMSD and MAD. The reason why the RL2 values seem high is
+because a significant fraction of the data points in the computational domain
+are zero and do not contribute to the denominator.
+Figure 1 shows four snapshots of Φ(x, t) at times t/M = 10, 20, 30, and 40
+for the case of a Regge-Wheeler potential. In red is the solution from FD and
+in blue that from PINN. In Figure 2, we show the absolute value difference
+between the FD and PINN solutions at the corresponding times. The most
+significant differences are observed at the leading edge of the pulse. For
+the case of the Zerilli potential, Fig. 3 shows snapshots in the evolution and
+Fig. 4 the differences between FD and PINN. Here again, the most prominent
+differences are observed at the leading edge.
+The main reason for the differences is because PINNs for linear PDEs suffer from a phase problem. Since in Eq. (16) the potential is localized around
+x = 1, to a good approximation, in most of the computational domain, we
+are solving the wave equation. If Φ(x, t) is a solution, so Φ(x, t + α) with α a
+constant. Thus, PINN may approach a solution with some associated phase
+instead of the true solution. To avoid this pitfall, we set the weight of initial
+velocity loss to 100, forcing PINN to minimize the phase α.
+In Figure 5, we show the evolution of the total loss function and of each
+of its components as a function of iterations.
+To calculate the QNMs, we sampled the solution Φ(x, t) of Eq. 16 for
+both the Regge-Wheeler and Zerilli potentials at xq = 10 M . As mentioned
+before, at late times after the initial burst passes, the solution will behave as
+Φ(xq , t) ∝ e−t/τ cos (ωt). Figure 6 shows Φ(xq , t) for ℓ = 2 from PINNs, FDs,
+and the solution using the values for ω and τ from Table 1. The left panel is
+for the Regge-Wheeler potential, and the right panel is for Zerilli.
+We followed two approaches to calculate ω and τ from the PINN and FD
+solutions. In method 1, a Fourier transformation was applied to Φ to find
+the frequency ω. For the decay time, τ was found by fitting a straight line
+passing through the local maxima of the log plots in Fig. 6. In method 2, we
+11
+
+Figure 1: Snapshots of the solutions for the Regge-Wheeler Potential.
+
+applied a direct curve fit e−t/τ cos (ωt) to the data. The results from both
+fits are given in Table 3.
+7. Conclusions and Future Directions
+The surge in popularity of neural networks in data science has also triggered applications in which input from physics is used to accelerate discovery
+and make more accurate predictions. In the present study, we have applied
+PINNs to solve the Zerilli and the Regge-Wheeler equations in the time domain to compute the QNMs of a Schwarzschild BH. At the core of the problem
+is the construction of a loss function with terms capturing the physics of the
+problem, e.g., residuals of the equations, boundary conditions, and initial
+data. To estimate the accuracy and efficiency of PINNs for this problem, we
+12
+
+Figure 2: Absolute difference between the FD and PINN solutions (Regge-Wheeler Potential).
+
+compare the extracted QNMs with those obtained with FD methods. The
+results show that the PINN approach is competitive but not more accurate
+than FD methods. At the same time, our results show that PINNs solve
+the equations under consideration with only a fraction of collocation points
+than FD. This supports the view that as the dimensionality of the problem increases, PINNs become more efficient as a tool to explore parameter
+space and guide where to carry out higher accuracy simulations with other
+methods.
+Apart from using a gradient-enhanced PINN, here are some improvements
+to mitigate errors that we will consider in future work:
+• Residual-based adaptive sampling: Wu et al. [17] experimented with different non-adaptive and residual-based adaptive for PINN and developed
+13
+
+Figure 3: Snapshots of the solutions for the Zerilli Potential.
+
+structures of two adaptive samplings: residual-based adaptive distribution
+(RAD) and residual-based adaptive refinement with distribution (RARD). RAD analyzes the current PINN performance and creates a new batch
+of training points according to the distribution of residual. On the other
+hand, RAR-D analyzes the current PINN performance and appends m
+residual points with the highest residuals to the training domain. Compared to RAD, RAR-D utilizes less computing resources.
+• Learning rate annealing: In some cases, PINN fails because of having stiff
+loss gradients that hinder the progress of the gradient descent method
+because of it falling in a limit cycle or becoming unstable [18]. Wang et al.
+[18] proposed a learning rate annealing method that updates the weights
+of the loss terms at each iteration of the gradient descent, allowing the
+gradient to be more gentle and relaxing the interactions between competing
+14
+
+Figure 4: Absolute difference between the FD and PINN solutions (Zerilli Potential).
+
+loss terms.
+• Improved fully-connected neural architecture: The accuracy of the PINN
+can be improved by feeding it the prior knowledge about the physical system, for example, symmetry, conservation laws, etc. However, many physical systems are poorly understood, obstructing the suggested exploitation. However, extending the architecture of the PINN to include general
+symmetry can improve its accuracy. Wang et al. [18] suggested one such
+extension: introducing two transformer networks that account for the multiplicative interaction between input dimensions and augment the hidden
+states with residual connections. This extension provides about a ten-fold
+improvement compared to traditional PINN [18].
+• Incorporating causality: In some cases, particularly with chaotic cases,
+PINN tends to approach incorrect solutions because of it being inconsider15
+
+Figure 5: Evolution of loss function and each of its components as a function of iterations.
+
+Figure 6: Curve Fittings for both Regge-Wheeler and Zerilli Potential.
+
+ate of causality. Wang et al. [19] proposed an algorithm to incorporate the
+temporal causality in PINN. The algorithm gives weights to the residual
+loss terms at different times and updates them concerning them at times
+before that particular time. For weight updates, it uses exponential decay,
+so the residual loss term at any particular time will only be considered if
+the residual loss terms before that time are minimized enough. This idea
+can be extended to spatial causality, so any residual point is only affected
+by the points inside the lower half of the light cone.
+• Multi-scale Fourier feature embeddings: Wave equations exhibit high fre16
+
+FD1
+FD2
+PINN1
+PINN2
+FD1
+FD2
+PINN1
+PINN2
+
+τ /M
+ωM
+Regge-Wheeler
+10.488 (6.70) 0.370 (0.90)
+11.489 (2.21) 0.387 (3.68)
+10.474 (6.82) 0.373 (0.11)
+10.636 (5.39) 0.383 (2.51)
+Zerilli
+10.804 (3.89) 0.370 (0.90)
+11.073 (1.49) 0.378 (1.26)
+10.089 (10.25) 0.375 (0.29)
+9.620 (14.42) 0.376 (0.52)
+
+Table 3: QNM parameters ω and τ for ℓ = 2. In parenthesis are the percentage error.
+The subindices denote the method used. For reference, the values from the literature are
+τ = 11.241 M and ω = 0.374/M for the ℓ = 2 mode.
+
+quencies, and PINNs usually fail to capture the high-frequency nature of
+the solutions. Wang et al. [20] examined the high-frequency and multiscale problems through the lens of Neural Tangent Kernel (NTK). After analyzing the spectral bias, they presented spatio-temporal multi-scale
+Fourier feature architecture. The architecture allows the network to learn
+frequencies determined by problem-dependent input parameter σ.
+8. Acknowledgments
+This work is supported by NSF grants PHY-2114582 and PHY-2207780.
+References
+[1] A. G. Baydin, B. A. Pearlmutter, A. A. Radul, J. M. Siskind, Automatic
+differentiation in machine learning: A survey, J. Mach. Learn. Res. 18 (1)
+(2017) 5595–5637.
+[2] M. Raissi, P. Perdikaris, G. Karniadakis, Physics-informed neural networks: A deep learning framework for solving forward
+and inverse problems involving nonlinear partial differential equations, Journal of Computational Physics 378 (2019) 686–707.
+doi:https://doi.org/10.1016/j.jcp.2018.10.045.
+
+17
+
+URL
+https://www.sciencedirect.com/science/article/pii/
+S0021999118307125
+[3] R. Bellman, Dynamic programming, Science 153 (3731) (1966) 34–37.
+arXiv:https://www.science.org/doi/pdf/10.1126/science.153.
+3731.34, doi:10.1126/science.153.3731.34.
+URL
+https://www.science.org/doi/abs/10.1126/science.153.
+3731.34
+[4] A. Ferrer-Sánchez, J. D. Martı́n-Guerrero, R. R. de Austri, A. TorresForné, J. A. Font, Gradient-annihilated pinns for solving riemann problems: Application to relativistic hydrodynamics (2023). arXiv:2305.
+08448.
+[5] M. A. Haddou, Quasi-normal modes of near-extremal black holes in drgt
+massive gravity using physics-informed neural networks (pinns) (2023).
+arXiv:2303.02395.
+[6] W. S. McCulloch, W. Pitts, A logical calculus of ideas immanent in
+nervous activity, Bulletin of Mathematical Biophysics 5 (1943) 115–133.
+[7] F. Rosenblatt, The perceptron: A probabilistic model for information
+storage and organization in the brain, Psychological Review 65 (6)
+(1958) 386–408. doi:10.1037/h0042519.
+URL https://doi.org/10.1037/h0042519
+[8] X. Glorot, Y. Bengio, Understanding the difficulty of training deep feedforward neural networks, in: Y. W. Teh, M. Titterington (Eds.), Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics, Vol. 9 of Proceedings of Machine Learning Research, PMLR, Chia Laguna Resort, Sardinia, Italy, 2010, pp. 249–256.
+URL https://proceedings.mlr.press/v9/glorot10a.html
+[9] I. Goodfellow, Y. Bengio, A. Courville, Deep Learning, MIT Press, 2016,
+http://www.deeplearningbook.org.
+[10] D. E. Rumelhart, G. E. Hinton, R. J. Williams, Learning representations
+by back-propagating errors, Nature 323 (1986) 533–536. doi:10.1038/
+323533a0.
+
+18
+
+[11] D. P. Kingma, J. Ba, Adam: A method for stochastic optimization
+(2017). arXiv:1412.6980.
+[12] J. Yu, L. Lu, X. Meng, G. E. Karniadakis, Gradient-enhanced physicsinformed neural networks for forward and inverse pde problems,
+Computer Methods in Applied Mechanics and Engineering 393 (2022)
+114823. doi:https://doi.org/10.1016/j.cma.2022.114823.
+URL
+https://www.sciencedirect.com/science/article/pii/
+S0045782522001438
+[13] P. J. Freire, S. Srivallapanondh, A. Napoli, J. E. Prilepsky, S. K. Turitsyn, Computational complexity evaluation of neural network applications in signal processing (2022). arXiv:2206.12191.
+[14] C. Subrahmanyan, D. S., The quasi-normal modes of the schwarzschild
+black hole, Proc. R. Soc. Lond. 344 (1639) (1975) 441–452. doi:10.
+1098/rspa.1975.0112.
+[15] K. D. Kokkotas, B. G. Schmidt, Quasi-Normal modes of stars and black
+holes, Living Reviews in Relativity 2 (1) (1999) 2.
+[16] L. Lu, X. Meng, Z. Mao, G. E. Karniadakis, DeepXDE: A deep learning
+library for solving differential equations, SIAM Review 63 (1) (2021)
+208–228. doi:10.1137/19M1274067.
+[17] C. Wu, M. Zhu, Q. Tan, Y. Kartha, L. Lu, A comprehensive study of non-adaptive and residual-based adaptive sampling for physics-informed neural networks, Computer Methods in Applied Mechanics and Engineering 403 (2023) 115671.
+doi:https://doi.org/10.1016/j.cma.2022.115671.
+URL
+https://www.sciencedirect.com/science/article/pii/
+S0045782522006260
+[18] S. Wang, Y. Teng, P. Perdikaris, Understanding and mitigating gradient
+flow pathologies in physics-informed neural networks, SIAM Journal on
+Scientific Computing 43 (5) (2021) A3055–A3081. arXiv:https://doi.
+org/10.1137/20M1318043, doi:10.1137/20M1318043.
+URL https://doi.org/10.1137/20M1318043
+
+19
+
+[19] S. Wang, S. Sankaran, P. Perdikaris, Respecting causality is all you need
+for training physics-informed neural networks, arXiv.org (Mar 2022).
+URL https://arxiv.org/abs/2203.07404
+[20] S. Wang, H. Wang, P. Perdikaris, On the eigenvector bias of
+fourier feature networks: From regression to solving multi-scale
+pdes with physics-informed neural networks, Computer Methods in Applied Mechanics and Engineering 384 (2021) 113938.
+doi:https://doi.org/10.1016/j.cma.2021.113938.
+URL
+https://www.sciencedirect.com/science/article/pii/
+S0045782521002759
+
+20
+
+

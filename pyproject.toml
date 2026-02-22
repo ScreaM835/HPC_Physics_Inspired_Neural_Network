@@ -1,0 +1,14 @@
+[project]
+name = "project32-qnm-pinn"
+version = "0.1.0"
+description = "Project 32: Schwarzschild Zerilli l=2 QNMs via PINN and FD"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "torch>=2.1",
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+    "deepxde>=1.11.0",
+]
