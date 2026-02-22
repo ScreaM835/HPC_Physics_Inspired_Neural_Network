@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.eggs/
+dist/
+build/
+.venv/
+venv_csd3/
+.vscode/
+.idea/
+outputs/
+*.npz
+*.pt
+*.err
+*.out
