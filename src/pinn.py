@@ -296,28 +296,40 @@ def _train_pinn_curriculum(
     Train the PINN using Curriculum Learning (Expanding Time Windows).
     This is mathematically equivalent to Time-Marching but avoids error accumulation
     at window boundaries and bypasses PyTorch derivative extraction bugs.
+
+    Resume logic per window:
+      - model-final-*.pt exists  → skip entire window (weights-only restore)
+      - model-adam_done-*.pt exists → skip Adam, resume/run L-BFGS
+      - only model-*.pt exists   → resume Adam from latest checkpoint
+      Weights-only restore is used when the optimizer type may differ between
+      the checkpoint and the current compile phase.
     """
     seed = int(cfg["pinn"]["seed"])
     dde.config.set_random_seed(seed)
     dde.config.set_default_float(cfg["pinn"]["dtype"])
 
     loss_weights = [float(w) for w in cfg["pinn"]["lambda"]]
-    
+
     curriculum_cfg = cfg["pinn"]["curriculum"]
     windows = curriculum_cfg["windows"]  # e.g., [10.0, 20.0, 30.0, 40.0, 50.0]
-    
+
+    adam_cfg = cfg["pinn"]["adam"]
+    adam_iters = int(adam_cfg["iters"])
+    lr = float(adam_cfg["lr"])
+    resample_period = int(adam_cfg["resample_period"])
+
     net = None
     history_all = None
-    
+
     for i, tmax in enumerate(windows):
-        print(f"\n{'='*50}")
+        print(f"\n{'='*60}")
         print(f"[PINN] Curriculum Window {i+1}/{len(windows)}: t in [0, {tmax}]")
-        print(f"{'='*50}\n")
-        
-        # Build model for this window
+        print(f"{'='*60}\n")
+
+        # Build model for this window (reuses network from previous window)
         model, data = build_model(cfg, tmax_override=tmax, net_override=net)
-        net = model.net  # Keep the network for the next window
-        
+        net = model.net  # Keep the network reference for the next window
+
         # Set up checkpointing for this window
         window_ckpt_dir = None
         model_save_path = None
@@ -325,128 +337,225 @@ def _train_pinn_curriculum(
             window_ckpt_dir = os.path.join(checkpoint_dir, f"window_{i+1}")
             os.makedirs(window_ckpt_dir, exist_ok=True)
             model_save_path = os.path.join(window_ckpt_dir, "model")
-            
-        # Check if this window is already fully trained
+
+        # ==============================================================
+        # RESUME CHECK 1: Is this window already fully trained?
+        # ==============================================================
         if resume and window_ckpt_dir:
-            final_ckpt = os.path.join(window_ckpt_dir, "model-final.pt")
-            if os.path.exists(final_ckpt):
-                print(f"[CKPT] Window {i+1} already completed. Restoring and skipping.")
-                model.compile("adam", lr=1e-3) # dummy compile
-                model.train(iterations=0, display_every=1) # init train state
-                model.restore(final_ckpt, verbose=1)
+            final_ckpt = _find_final_checkpoint(window_ckpt_dir)
+            if final_ckpt is not None:
+                print(f"[CKPT] Window {i+1} already completed. "
+                      f"Restoring weights and skipping.")
+                _restore_weights_only(net, final_ckpt, verbose=1)
                 continue
-            
-        # ---- Adam phase ----
-        adam_cfg = cfg["pinn"]["adam"]
-        adam_iters = int(adam_cfg["iters"])
-        lr = float(adam_cfg["lr"])
-        resample_period = int(adam_cfg["resample_period"])
 
-        callbacks_adam: List = []
-        callbacks_adam.append(
-            dde.callbacks.PDEPointResampler(period=resample_period)
-        )
+        # ==============================================================
+        # RESUME CHECK 2: Is Adam already done for this window?
+        # ==============================================================
+        skip_adam = False
+        lbfgs_resume_ckpt = None
 
-        # Gradient balancing (Wang et al. 2021)
-        grad_bal_cfg = cfg["pinn"].get("gradient_balancing", {})
-        if grad_bal_cfg.get("enabled", False):
-            gb_period = int(grad_bal_cfg.get("period", 100))
-            gb_alpha = float(grad_bal_cfg.get("alpha", 0.9))
-            callbacks_adam.append(
-                GradientBalancing(period=gb_period, alpha=gb_alpha)
-            )
-
-        model_restore_path = None
         if resume and window_ckpt_dir:
-            ckpt = _find_latest_checkpoint(window_ckpt_dir)
-            if ckpt is not None:
-                model_restore_path = ckpt
-                print(f"[CKPT] Restoring from {ckpt}")
+            adam_done_ckpt = _find_adam_done_checkpoint(window_ckpt_dir)
+            if adam_done_ckpt is not None:
+                skip_adam = True
 
-        if model_save_path:
+        # ==============================================================
+        # ADAM PHASE
+        # ==============================================================
+        losshistory_adam = None
+
+        if not skip_adam:
+            callbacks_adam: List = []
             callbacks_adam.append(
-                dde.callbacks.ModelCheckpoint(
-                    model_save_path,
-                    save_better_only=False,
-                    period=checkpoint_every,
-                )
+                dde.callbacks.PDEPointResampler(period=resample_period)
             )
 
-        model.compile("adam", lr=lr, loss_weights=loss_weights)
+            # Gradient balancing (Wang et al. 2021)
+            grad_bal_cfg = cfg["pinn"].get("gradient_balancing", {})
+            if grad_bal_cfg.get("enabled", False):
+                gb_period = int(grad_bal_cfg.get("period", 100))
+                gb_alpha = float(grad_bal_cfg.get("alpha", 0.9))
+                callbacks_adam.append(
+                    GradientBalancing(period=gb_period, alpha=gb_alpha)
+                )
 
-        print(f"[PINN] Adam: {adam_iters} iters, lr={lr}, resample every {resample_period}")
-        losshistory_adam, _ = model.train(
-            iterations=adam_iters,
-            callbacks=callbacks_adam,
-            display_every=100,
-            model_save_path=model_save_path,
-            model_restore_path=model_restore_path,
-        )
+            model_restore_path = None
+            if resume and window_ckpt_dir:
+                ckpt = _find_latest_checkpoint(window_ckpt_dir)
+                if ckpt is not None:
+                    model_restore_path = ckpt
+                    print(f"[CKPT] Restoring from {ckpt}")
 
-        if model_save_path:
-            model.save(model_save_path + "-adam_done")
-            import json
-            weights_file = os.path.join(window_ckpt_dir, "loss_weights_adam.json")
-            with open(weights_file, "w") as f:
-                json.dump(list(model.loss_weights), f)
+            if model_save_path:
+                callbacks_adam.append(
+                    dde.callbacks.ModelCheckpoint(
+                        model_save_path,
+                        save_better_only=False,
+                        period=checkpoint_every,
+                    )
+                )
 
-        # ---- L-BFGS phase ----
+            model.compile("adam", lr=lr, loss_weights=loss_weights)
+
+            print(f"[PINN] Adam: {adam_iters} iters, lr={lr}, "
+                  f"resample every {resample_period}")
+            losshistory_adam, _ = model.train(
+                iterations=adam_iters,
+                callbacks=callbacks_adam,
+                display_every=100,
+                model_save_path=model_save_path,
+                model_restore_path=model_restore_path,
+            )
+
+            if model_save_path:
+                model.save(model_save_path + "-adam_done")
+                weights_file = os.path.join(
+                    window_ckpt_dir, "loss_weights_adam.json"
+                )
+                with open(weights_file, "w") as f:
+                    json.dump(list(model.loss_weights), f)
+
+        else:
+            # ---- Adam already done — restore and skip to L-BFGS ----
+            print(f"[CKPT] Window {i+1} Adam already done — "
+                  f"skipping to L-BFGS.")
+            model.compile("adam", lr=lr, loss_weights=loss_weights)
+            model.train(iterations=0, display_every=1)  # init train state
+            model.restore(adam_done_ckpt, verbose=1)
+
+            # Restore gradient-balanced weights
+            weights_file = os.path.join(
+                window_ckpt_dir, "loss_weights_adam.json"
+            )
+            if os.path.isfile(weights_file):
+                with open(weights_file) as f:
+                    saved_weights = json.load(f)
+                model.loss_weights = saved_weights
+                wstr = ", ".join(f"{w:.2f}" for w in saved_weights)
+                print(f"[CKPT] Restored gradient-balanced weights: [{wstr}]")
+
+            # Look for a more recent L-BFGS checkpoint
+            lbfgs_resume_ckpt = _find_latest_checkpoint(
+                window_ckpt_dir, exclude_prefix="model-adam_done"
+            )
+            if lbfgs_resume_ckpt is not None:
+                step = _get_checkpoint_step(lbfgs_resume_ckpt)
+                if step is not None and step <= adam_iters:
+                    lbfgs_resume_ckpt = None  # Adam-phase ckpt, not L-BFGS
+
+        # ==============================================================
+        # L-BFGS PHASE
+        # ==============================================================
         lbfgs_cfg = cfg["pinn"]["lbfgs"]
         lbfgs_iters = int(lbfgs_cfg["iters"])
 
         lbfgs_loss_weights = list(model.loss_weights)
-        
-        dde.optimizers.set_LBFGS_options(
-            maxcor=100,
-            maxiter=lbfgs_iters,
-            ftol=0,
-            gtol=1e-8,
-            maxls=50,
-        )
-        
-        lbfgs_resample_period = int(lbfgs_cfg.get("resample_period", 0))
-        if lbfgs_resample_period > 0:
-            step_size = min(checkpoint_every, lbfgs_resample_period, lbfgs_iters)
-        else:
-            step_size = min(checkpoint_every, lbfgs_iters)
 
-        from deepxde.optimizers.config import LBFGS_options as _lbfgs_opts
-        _lbfgs_opts["iter_per_step"] = step_size
-        _lbfgs_opts["fun_per_step"] = int(_lbfgs_opts["iter_per_step"] * 1.25)
+        # Calculate remaining L-BFGS iterations
+        lbfgs_remaining = lbfgs_iters
+        if lbfgs_resume_ckpt is not None:
+            step = _get_checkpoint_step(lbfgs_resume_ckpt)
+            if step is not None:
+                lbfgs_done = max(0, step - adam_iters)
+                if lbfgs_done > 0:
+                    lbfgs_remaining = lbfgs_iters - lbfgs_done
+                    print(f"[CKPT] L-BFGS: {lbfgs_done}/{lbfgs_iters} done, "
+                          f"{lbfgs_remaining} remaining")
+                else:
+                    lbfgs_resume_ckpt = None
 
-        model.compile("L-BFGS", loss_weights=lbfgs_loss_weights)
+        losshistory_lbfgs = None
 
-        callbacks_lbfgs = []
-        if model_save_path:
-            callbacks_lbfgs.append(
-                dde.callbacks.ModelCheckpoint(
-                    model_save_path,
-                    save_better_only=False,
-                    period=checkpoint_every,
+        if lbfgs_remaining > 0:
+            dde.optimizers.set_LBFGS_options(
+                maxcor=100,
+                maxiter=lbfgs_remaining,
+                ftol=0,
+                gtol=1e-8,
+                maxls=50,
+            )
+
+            lbfgs_resample_period = int(lbfgs_cfg.get("resample_period", 0))
+            if lbfgs_resample_period > 0:
+                step_size = min(
+                    checkpoint_every, lbfgs_resample_period, lbfgs_remaining
                 )
-            )
-        
-        if lbfgs_resample_period > 0:
-            callbacks_lbfgs.append(
-                dde.callbacks.PDEPointResampler(period=lbfgs_resample_period)
-            )
-            
-        losshistory_lbfgs, _ = model.train(
-            iterations=lbfgs_iters,
-            callbacks=callbacks_lbfgs,
-            display_every=100
-        )
+            else:
+                step_size = min(checkpoint_every, lbfgs_remaining)
 
-        if model_save_path:
-            model.save(model_save_path + "-final")
+            from deepxde.optimizers.config import LBFGS_options as _lbfgs_opts
+            _lbfgs_opts["iter_per_step"] = step_size
+            _lbfgs_opts["fun_per_step"] = int(step_size * 1.25)
 
-        # Combine history
-        history = _combine_loss_histories(losshistory_adam, losshistory_lbfgs)
-        if history_all is None:
-            history_all = history
+            model.compile("L-BFGS", loss_weights=lbfgs_loss_weights)
+
+            # Restore only model weights (ignore optimizer state — fresh
+            # L-BFGS optimizer rebuilds curvature estimates from scratch)
+            if lbfgs_resume_ckpt is not None:
+                print(f"[CKPT] Restoring model weights from "
+                      f"{lbfgs_resume_ckpt}")
+                _restore_weights_only(net, lbfgs_resume_ckpt, verbose=1)
+
+            callbacks_lbfgs = []
+            if model_save_path:
+                callbacks_lbfgs.append(
+                    dde.callbacks.ModelCheckpoint(
+                        model_save_path,
+                        save_better_only=False,
+                        period=checkpoint_every,
+                    )
+                )
+
+            if lbfgs_resample_period > 0:
+                callbacks_lbfgs.append(
+                    dde.callbacks.PDEPointResampler(
+                        period=lbfgs_resample_period
+                    )
+                )
+
+            losshistory_lbfgs, _ = model.train(
+                iterations=lbfgs_remaining,
+                callbacks=callbacks_lbfgs,
+                display_every=100,
+            )
+
+            if model_save_path:
+                model.save(model_save_path + "-final")
+
         else:
-            for key in history_all:
-                history_all[key].extend(history[key])
+            print(f"[PINN] L-BFGS already completed for window {i+1}.")
+            # Make sure the network has the latest L-BFGS weights
+            if lbfgs_resume_ckpt:
+                _restore_weights_only(net, lbfgs_resume_ckpt, verbose=1)
+
+        # ==============================================================
+        # COMBINE HISTORY FOR THIS WINDOW
+        # ==============================================================
+        if losshistory_adam is not None and losshistory_lbfgs is not None:
+            history = _combine_loss_histories(
+                losshistory_adam, losshistory_lbfgs
+            )
+        elif losshistory_lbfgs is not None:
+            history = _convert_loss_history(losshistory_lbfgs)
+        elif losshistory_adam is not None:
+            history = _convert_loss_history(losshistory_adam)
+        else:
+            history = None  # Fully skipped or fully resumed window
+
+        if history is not None:
+            if history_all is None:
+                history_all = history
+            else:
+                for key in history_all:
+                    history_all[key].extend(history[key])
+
+    # If all windows were skipped (full resume), return empty history
+    if history_all is None:
+        history_all = {
+            "L_total": [], "Lr": [], "Lrx": [], "Lrt": [],
+            "Lic": [], "Liv": [], "Lbl": [], "Lbr": [], "w_min": [],
+        }
 
     return model, history_all
 
@@ -736,6 +845,55 @@ def _find_adam_done_checkpoint(checkpoint_dir: str) -> Optional[str]:
         if f.startswith("model-adam_done") and f.endswith(".pt"):
             return os.path.join(checkpoint_dir, f)
     return None
+
+
+def _find_final_checkpoint(checkpoint_dir: str) -> Optional[str]:
+    """Find the model-final-*.pt checkpoint if it exists.
+
+    DeepXDE appends the step number when saving, so the actual file is
+    ``model-final-{step}.pt``, not ``model-final.pt``.
+
+    Returns the full path or None.
+    """
+    if not os.path.isdir(checkpoint_dir):
+        return None
+    for f in os.listdir(checkpoint_dir):
+        if f.startswith("model-final-") and f.endswith(".pt"):
+            return os.path.join(checkpoint_dir, f)
+    return None
+
+
+def _restore_weights_only(net: torch.nn.Module, checkpoint_path: str,
+                          verbose: int = 0) -> None:
+    """Load only network weights from a DeepXDE checkpoint.
+
+    Unlike ``Model.restore()``, this ignores the optimizer state dict,
+    which avoids crashes when the checkpoint was saved with a different
+    optimizer (e.g. restoring an L-BFGS checkpoint into an Adam-compiled
+    model).
+    """
+    if verbose > 0:
+        print(f"  Loading weights from {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu",
+                            weights_only=True)
+    net.load_state_dict(checkpoint["model_state_dict"])
+
+
+def _get_checkpoint_step(filepath: str) -> Optional[int]:
+    """Extract the step number from a DeepXDE checkpoint filename.
+
+    Examples
+    --------
+    >>> _get_checkpoint_step("model-500.pt")
+    500
+    >>> _get_checkpoint_step("model-adam_done-2000.pt")
+    2000
+    >>> _get_checkpoint_step("model-final-5000.pt")
+    5000
+    """
+    basename = os.path.basename(filepath)
+    m = re.search(r"-(\d+)\.pt$", basename)
+    return int(m.group(1)) if m else None
 
 
 # ---------------------------------------------------------------------------

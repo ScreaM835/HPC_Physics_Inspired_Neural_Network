@@ -9,8 +9,8 @@
 #SBATCH --account=fergusson-sl3-cpu
 #SBATCH --partition=icelake
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --time=08:00:00
 #SBATCH --signal=B:USR1@300
 
 # Flush Python output immediately (so tqdm progress appears in .err)
@@ -20,8 +20,8 @@ set -e
 
 WORKDIR=/home/ycc44/project32_qnm_pinn_repo_fd_refinement/project32_qnm_pinn_improved
 VENV_DIR=/home/ycc44/project32_qnm_pinn_repo_fd_refinement/project32_qnm_pinn/venv_csd3
-CONFIG=configs/zerilli_l2.yaml
-CKPT_DIR="$WORKDIR/outputs/pinn/zerilli_l2/checkpoints"
+CONFIG=configs/zerilli_l2_fd_refined.yaml
+CKPT_DIR="$WORKDIR/outputs/pinn/zerilli_l2_fd_refined/checkpoints"
 
 # ---- Signal handler: save checkpoint on approaching time limit ----
 requeue_handler() {
@@ -55,6 +55,11 @@ fi
 source "$VENV_DIR/bin/activate"
 echo "[SETUP] Python: $(python --version)"
 
+# Use all allocated cores for PyTorch intra-op parallelism
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
+echo "[SETUP] OMP_NUM_THREADS=$OMP_NUM_THREADS"
+
 # Install the improved package into the shared venv
 # Use project-local tmp dir in case /tmp is full on shared nodes
 export TMPDIR="$WORKDIR/.pip_tmp"
@@ -85,7 +90,7 @@ fi
 # --- Train PINN ---
 echo ""
 echo "============================================"
-echo "[PINN] Training IMPROVED PINN (zerilli_l2.yaml)..."
+echo "[PINN] Training IMPROVED PINN (zerilli_l2_fd_refined.yaml)..."
 echo "  Framework: DeepXDE (PyTorch backend)"
 echo "  Model: Trainable RFF + Modified MLP (Wang et al. 2021, 2023)"
 echo "  Config: 10k Adam + 15k L-BFGS"

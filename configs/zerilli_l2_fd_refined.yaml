@@ -34,13 +34,17 @@ pinn:
   activation: tanh
   output_transform: tanh_bound
   lambda:
-  - 100.0
-  - 100.0
-  - 100.0
-  - 1.0
-  - 100.0
   - 1.0
   - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  gradient_balancing:
+    enabled: true
+    period: 100
+    alpha: 0.9
   adam:
     lr: 0.001
     iters: 2000
