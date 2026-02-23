@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Dict, List, Optional, Tuple
 
 import deepxde as dde
@@ -238,13 +239,14 @@ def build_model(cfg: Dict) -> Tuple[dde.Model, dde.data.TimePDE]:
         num_domain=Nr,
         num_boundary=Nb,
         num_initial=Ni,
-        train_distribution="uniform",
     )
 
     layers = [2] + [int(w) for w in cfg["pinn"]["hidden_layers"]] + [1]
     net = dde.nn.FNN(layers, "tanh", "Glorot uniform")
 
-    # Output transform:  A * tanh(y)  -- bounds output, matches the paper
+    # Output transform: A * tanh(y)
+    # Bounding the output enforces the physical constraint of energy conservation
+    # and prevents the network from adapting a blowing-up solution (Patel et al. 2024).
     A_bound = float(cfg["initial_data"]["A"])
     net.apply_output_transform(lambda x, y: A_bound * torch.tanh(y))
 
@@ -303,6 +305,9 @@ def train_pinn(
 
     losshistory_adam = None
     lbfgs_resume_ckpt = None  # deferred to after L-BFGS compile
+
+    # Total Adam iterations (needed for global step numbering in L-BFGS)
+    adam_iters_total = int(cfg["pinn"]["adam"]["iters"])
 
     if adam_already_done:
         # ---- Skip Adam: restore weights from adam_done checkpoint ----
@@ -403,26 +408,59 @@ def train_pinn(
     wstr = ", ".join(f"{w:.4f}" for w in lbfgs_loss_weights)
     print(f"[PINN] L-BFGS loss weights (frozen from Adam): [{wstr}]")
 
-    # L-BFGS options must be set BEFORE model.compile.
-    # Note: the ``iterations`` argument to model.train() is IGNORED for
-    # L-BFGS on the PyTorch backend; maxiter controls the run length.
+    # Determine how many L-BFGS iterations have already been completed
+    lbfgs_iters_done = 0
+    if lbfgs_resume_ckpt is not None:
+        m = re.search(r"model-(\d+)\.pt$", lbfgs_resume_ckpt)
+        if m:
+            ckpt_step = int(m.group(1))
+            lbfgs_iters_done = max(0, ckpt_step - adam_iters_total)
+            if lbfgs_iters_done > 0:
+                print(f"[CKPT] L-BFGS iterations already done: {lbfgs_iters_done}")
+            else:
+                print(f"[CKPT] Checkpoint {lbfgs_resume_ckpt} is from Adam phase — skipping")
+                lbfgs_resume_ckpt = None
+
+    iters_remaining = lbfgs_iters - lbfgs_iters_done
+    if iters_remaining <= 0:
+        print("[PINN] L-BFGS already completed.")
+        return model, _convert_loss_history(losshistory_adam) if losshistory_adam else {}
+
+    print(f"[PINN] L-BFGS: {iters_remaining} iterations remaining")
+
+    # Set L-BFGS options
     dde.optimizers.set_LBFGS_options(
         maxcor=100,
-        maxiter=lbfgs_iters,
+        maxiter=iters_remaining,
         ftol=0,
         gtol=1e-8,
         maxls=50,
     )
+    
+    # DeepXDE executes L-BFGS within a single closure. To enable periodic callbacks
+    # (such as ModelCheckpoint and PDEPointResampler) without resetting the optimizer
+    # state and losing the Hessian approximation history, we configure iter_per_step.
+    # We must set iter_per_step to the greatest common divisor of our callback periods
+    # (or simply the minimum period) so that the closure yields control back to the
+    # callback loop frequently enough.
+    lbfgs_resample_period = int(lbfgs_cfg.get("resample_period", 0))
+    if lbfgs_resample_period > 0:
+        step_size = min(checkpoint_every, lbfgs_resample_period, iters_remaining)
+    else:
+        step_size = min(checkpoint_every, iters_remaining)
+
+    from deepxde.optimizers.config import LBFGS_options as _lbfgs_opts
+    _lbfgs_opts["iter_per_step"] = step_size
+    _lbfgs_opts["fun_per_step"] = int(_lbfgs_opts["iter_per_step"] * 1.25)
 
     model.compile("L-BFGS", loss_weights=lbfgs_loss_weights)
 
-    # Restore L-BFGS checkpoint if resuming after Adam was already done.
-    # This must happen AFTER L-BFGS compile so the optimizer types match.
     if lbfgs_resume_ckpt is not None:
-        model.restore(lbfgs_resume_ckpt, verbose=1)
+        print(f"[CKPT] Restoring model weights from {lbfgs_resume_ckpt}")
+        checkpoint = torch.load(lbfgs_resume_ckpt, weights_only=True)
+        model.net.load_state_dict(checkpoint["model_state_dict"])
 
-    # Add periodic checkpointing during L-BFGS too
-    callbacks_lbfgs: List = []
+    callbacks_lbfgs = []
     if model_save_path:
         callbacks_lbfgs.append(
             dde.callbacks.ModelCheckpoint(
@@ -431,12 +469,18 @@ def train_pinn(
                 period=checkpoint_every,
             )
         )
+    
+    # Add PDEPointResampler for L-BFGS if configured
+    if lbfgs_resample_period > 0:
+        callbacks_lbfgs.append(
+            dde.callbacks.PDEPointResampler(period=lbfgs_resample_period)
+        )
+        print(f"[PINN] L-BFGS: resampling collocation points every {lbfgs_resample_period} iterations")
 
-    print(f"[PINN] L-BFGS: up to {lbfgs_iters} iterations")
     losshistory_lbfgs, _ = model.train(
-        display_every=100,
+        iterations=iters_remaining,
         callbacks=callbacks_lbfgs,
-        model_save_path=model_save_path,
+        display_every=100
     )
 
     if model_save_path:
@@ -445,9 +489,13 @@ def train_pinn(
 
     # ---- Combine loss histories ----
     if losshistory_adam is not None:
-        history = _combine_loss_histories(losshistory_adam, losshistory_lbfgs)
+        history = _combine_loss_histories(
+            losshistory_adam, losshistory_lbfgs, adam_iters=adam_iters_total
+        )
     else:
-        history = _convert_loss_history(losshistory_lbfgs)
+        history = _convert_loss_history(
+            losshistory_lbfgs, step_offset=adam_iters_total, phase="lbfgs"
+        )
 
     return model, history
 
@@ -502,16 +550,20 @@ def _find_adam_done_checkpoint(checkpoint_dir: str) -> Optional[str]:
 # Loss-history conversion
 # ---------------------------------------------------------------------------
 
-def _convert_loss_history(losshistory) -> Dict[str, List[float]]:
+def _convert_loss_history(
+    losshistory, step_offset: int = 0, phase: str = "adam"
+) -> Dict[str, List]:
     """Convert a single DeepXDE LossHistory to our dict format.
 
     DeepXDE records per-component MSEs (unweighted).
     Order: [PDE outputs ..., IC/BCs ...] = [r, r_x, r_t, ic, iv, bl, br].
     """
     loss_names = ["Lr", "Lrx", "Lrt", "Lic", "Liv", "Lbl", "Lbr"]
-    history: Dict[str, List[float]] = {name: [] for name in loss_names}
+    history: Dict[str, List] = {name: [] for name in loss_names}
     history["L_total"] = []
     history["w_min"] = []  # placeholder (causal training not yet ported)
+    history["steps"] = []
+    history["phase"] = []
 
     steps = losshistory.steps
     losses = np.array(losshistory.loss_train)
@@ -524,15 +576,17 @@ def _convert_loss_history(losshistory) -> Dict[str, List[float]]:
             total += val
         history["L_total"].append(total)
         history["w_min"].append(1.0)
+        history["steps"].append(int(steps[i]) + step_offset)
+        history["phase"].append(phase)
 
     return history
 
 
-def _combine_loss_histories(lh_adam, lh_lbfgs) -> Dict[str, List[float]]:
+def _combine_loss_histories(lh_adam, lh_lbfgs, adam_iters: int = 0) -> Dict[str, List]:
     """Concatenate Adam and L-BFGS loss histories."""
-    h1 = _convert_loss_history(lh_adam)
-    h2 = _convert_loss_history(lh_lbfgs)
-    combined: Dict[str, List[float]] = {}
+    h1 = _convert_loss_history(lh_adam, step_offset=0, phase="adam")
+    h2 = _convert_loss_history(lh_lbfgs, step_offset=adam_iters, phase="lbfgs")
+    combined: Dict[str, List] = {}
     for key in h1:
         combined[key] = h1[key] + h2[key]
     return combined

@@ -9,8 +9,8 @@
 #SBATCH --account=fergusson-sl3-cpu
 #SBATCH --partition=icelake
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=10
+#SBATCH --time=08:00:00
 #SBATCH --signal=B:USR1@300
 
 # Flush Python output immediately (so tqdm progress appears in .err)
@@ -19,15 +19,16 @@ export PYTHONUNBUFFERED=1
 set -e
 
 WORKDIR=/home/ycc44/project32_qnm_pinn_repo_fd_refinement/project32_qnm_pinn
-CONFIG=configs/zerilli_l2.yaml
-CKPT_DIR="$WORKDIR/outputs/pinn/zerilli_l2/checkpoints"
+CONFIG=${1:-configs/zerilli_l2_paper.yaml}
+EXP_NAME=$(grep -A0 '^\s*name:' "$WORKDIR/$CONFIG" | head -1 | sed 's/.*name:[[:space:]]*//')
+CKPT_DIR="$WORKDIR/outputs/pinn/$EXP_NAME/checkpoints"
 
 # ---- Signal handler: save checkpoint on approaching time limit ----
 requeue_handler() {
     echo "[SIGNAL] Caught USR1 — job approaching time limit."
     echo "[SIGNAL] Checkpoint should already be saved periodically."
     echo "[SIGNAL] Resubmitting job to continue training..."
-    sbatch "$WORKDIR/scripts/slurm_pinn.sh"
+    sbatch "$WORKDIR/scripts/slurm_pinn.sh" "$CONFIG"
     exit 0
 }
 trap requeue_handler USR1
@@ -54,7 +55,12 @@ source venv_csd3/bin/activate
 echo "[SETUP] Python: $(python --version)"
 
 # Install deps (will be fast if already installed by the FD job)
+# Use project-local tmp dir in case /tmp is full on shared nodes
+export TMPDIR="$WORKDIR/.pip_tmp"
+mkdir -p "$TMPDIR"
 pip install --quiet .
+rm -rf "$TMPDIR"
+unset TMPDIR
 
 # GPU check
 echo "[GPU] Checking GPU availability..."
@@ -68,6 +74,11 @@ if torch.cuda.is_available():
 "
 nvidia-smi 2>/dev/null || echo "(No GPU driver — running on CPU)"
 
+# --- Maximize CPU Utilization ---
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
+echo "[SETUP] Using $SLURM_CPUS_PER_TASK CPU threads for PyTorch"
+
 # --- Determine whether to resume ---
 RESUME_FLAG=""
 if ls "$CKPT_DIR"/model*.pt 1>/dev/null 2>&1; then
@@ -78,12 +89,9 @@ fi
 # --- Train PINN ---
 echo ""
 echo "============================================"
-echo "[PINN] Training PINN (zerilli_l2.yaml)..."
+echo "[PINN] Training PINN ($CONFIG)..."
+echo "  Experiment: $EXP_NAME"
 echo "  Framework: DeepXDE (PyTorch backend)"
-echo "  Config: 10k Adam + 15k L-BFGS"
-echo "  Nr=32000, Ni=800, Nb=400"
-echo "  Gradient balancing: enabled (Wang et al. 2021)"
-echo "  Checkpoint every 500 iters"
 if [ -n "$RESUME_FLAG" ]; then
     echo "  >>> RESUMING from checkpoint <<<"
 fi
