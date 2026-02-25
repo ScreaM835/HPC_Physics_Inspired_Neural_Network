@@ -1,0 +1,8 @@
+FD refinement comparison (coarse vs refined)
+coarse:  dx=0.2, dt=0.1, Nx=1001, Nt=500
+refined: dx=0.1, dt=0.05, Nx=2001, Nt=1000
+
+Metrics on coarse grid (refined restricted to coarse points):
+  RMSD: 0.00034621309
+  MAD: 0.00010135379
+  RL2: 0.0024554915

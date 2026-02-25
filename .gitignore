@@ -9,7 +9,6 @@ build/
 venv_csd3/
 .vscode/
 .idea/
-outputs/
 *.npz
 *.pt
 *.err
