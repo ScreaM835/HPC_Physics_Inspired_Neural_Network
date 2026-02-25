@@ -125,3 +125,49 @@ def qnm_method_2(t: np.ndarray, y: np.ndarray, t_start: float, t_end: float) -> 
     )
     A, tau, omega, phi = popt
     return {"omega": float(omega), "tau": float(tau), "A": float(A), "phi": float(phi)}
+
+
+# ---------------------------------------------------------------------------
+# Theoretical QNM reference values  (Leaver 1985, l=2 Schwarzschild)
+# These are the same values cited in Patel, Laguna & Shoemaker Table 3.
+# ---------------------------------------------------------------------------
+THEORY = {
+    "zerilli": {2: {"omega": 0.3737, "tau": 11.241}},
+    "regge_wheeler": {2: {"omega": 0.3737, "tau": 11.241}},
+}
+
+
+def percentage_errors(
+    result: Dict[str, float],
+    potential: str = "zerilli",
+    ell: int = 2,
+) -> Dict[str, float]:
+    """
+    Compute percentage errors of extracted ω and τ relative to theoretical
+    QNM values, matching the convention used in Patel et al. Table 3:
+
+        % error = |extracted - theory| / theory × 100
+
+    Parameters
+    ----------
+    result : dict with keys "omega" and "tau"
+    potential : "zerilli" or "regge_wheeler"
+    ell : angular mode number
+
+    Returns
+    -------
+    dict with keys "omega_pct_err", "tau_pct_err", "omega_theory", "tau_theory"
+    """
+    ref = THEORY.get(potential, {}).get(ell)
+    if ref is None:
+        return {"omega_pct_err": float("nan"), "tau_pct_err": float("nan")}
+
+    omega_err = abs(result["omega"] - ref["omega"]) / ref["omega"] * 100.0
+    tau_err = abs(result["tau"] - ref["tau"]) / ref["tau"] * 100.0 if np.isfinite(result.get("tau", float("nan"))) else float("nan")
+
+    return {
+        "omega_pct_err": float(omega_err),
+        "tau_pct_err": float(tau_err),
+        "omega_theory": ref["omega"],
+        "tau_theory": ref["tau"],
+    }

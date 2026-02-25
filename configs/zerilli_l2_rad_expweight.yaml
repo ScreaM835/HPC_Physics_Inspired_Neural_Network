@@ -1,0 +1,84 @@
+# Zerilli (even parity) l=2 — RAD + Exponential Reweighting
+#
+# Base architecture from Patel, Laguna & Shoemaker (2024):
+#   FNN [2, 80, 40, 20, 10, 1], tanh, Glorot uniform, A*tanh(y)
+#   Paper lambda weights: [100, 100, 100, 1, 100, 1, 1]
+#
+# Improvements:
+#   1. RAD adaptive sampling (Wu et al. 2023) — period=1000, k=1, c=1
+#   2. Exponential reweighting — r * exp(t / tau_est) to fix late-time phase drift
+
+experiment:
+  name: zerilli_l2_rad_expweight
+
+physics:
+  M: 1.0
+  l: 2
+  potential: zerilli
+  pde_sign: standard
+
+domain:
+  xmin: -50.0
+  xmax: 150.0
+  tmin: 0.0
+  tmax: 50.0
+
+initial_data:
+  A: 1.0
+  x0: 4.0
+  sigma: 5.0
+  velocity_profile: outgoing
+
+fd:
+  dx: 0.2
+  dt: 0.1
+  scheme: rk4_mol
+
+pinn:
+  seed: 1234
+  dtype: float64
+
+  Nr: 32000
+  Ni: 800
+  Nb: 400
+
+  # Base paper architecture
+  hidden_layers: [80, 40, 20, 10]
+  activation: tanh
+  output_transform: tanh_bound
+
+  # Paper loss weights (Patel et al. 2024, Table 2)
+  # [Lr, Lrx, Lrt, Lic, Liv, Lbl, Lbr]
+  lambda: [100.0, 100.0, 100.0, 1.0, 100.0, 1.0, 1.0]
+
+  # Exponential reweighting: multiply PDE residuals by exp(t / tau_est)
+  # tau_est = theoretical QNM damping time for l=2 Schwarzschild (Leaver 1985)
+  tau_est: 11.241
+
+  # RAD adaptive sampling (Wu et al. 2023)
+  adaptive_sampling:
+    enabled: true
+    method: RAD
+    period: 1000
+    num_candidates: 100000
+    k: 1.0
+    c: 1.0
+    eval_batch_size: 5000
+
+  adam:
+    lr: 1.0e-3
+    iters: 10000
+    resample_period: 100
+
+  lbfgs:
+    iters: 15000
+    resample_period: 100
+
+evaluation:
+  xq: 10.0
+
+qnm:
+  t_start: 10.0
+  t_end: 50.0
+  omega_theory: 0.3737
+  tau_theory: 11.241

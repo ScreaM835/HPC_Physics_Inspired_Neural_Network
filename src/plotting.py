@@ -64,22 +64,43 @@ def plot_abs_diff_snapshots(
 def plot_loss(history: Dict[str, List[float]], outpath: str, title: str) -> None:
     ensure_dir(os.path.dirname(outpath))
     fig = plt.figure(figsize=(9, 5))
-    it = np.arange(len(history["L_total"]))
-    plt.semilogy(it, history["L_total"], label="L_total")
+
+    # Use actual iteration numbers if available, otherwise fallback to indices
+    if "steps" in history and len(history["steps"]) == len(history["L_total"]):
+        it = np.array(history["steps"])
+    else:
+        it = np.arange(len(history["L_total"]))
+
+    ax = plt.gca()
+    ax.semilogy(it, history["L_total"], label="L_total", linewidth=1.5)
     for k in ["Lr", "Lrx", "Lrt", "Lic", "Liv", "Lbl", "Lbr"]:
-        plt.semilogy(it, history[k], label=k)
+        ax.semilogy(it, history[k], label=k, alpha=0.7)
+
+    # Mark Adam → L-BFGS transition
+    if "phase" in history:
+        phases = history["phase"]
+        for i in range(1, len(phases)):
+            if phases[i] != phases[i - 1]:
+                ax.axvline(it[i], color="grey", linestyle="--", alpha=0.7, linewidth=1.2)
+                ax.text(
+                    it[i], ax.get_ylim()[1], " L-BFGS →",
+                    fontsize=8, va="top", ha="left", color="grey",
+                )
+                break
+
     # If causal training is active, show the minimum causal weight on a secondary axis
     if "w_min" in history and any(v < 1.0 for v in history["w_min"]):
-        ax2 = plt.gca().twinx()
+        ax2 = ax.twinx()
         ax2.plot(it, history["w_min"], color="black", linestyle="--", alpha=0.5, label="w_min (causal)")
         ax2.set_ylabel("Min causal weight", fontsize=8)
         ax2.set_ylim(-0.05, 1.05)
         ax2.legend(loc="center right", fontsize=8)
-    plt.xlabel("Iteration")
-    plt.ylabel("Loss")
-    plt.title(title)
-    plt.grid(True, alpha=0.3)
-    plt.legend(ncol=2, fontsize=8)
+
+    ax.set_xlabel("Training step")
+    ax.set_ylabel("Loss (unweighted MSE)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.legend(ncol=2, fontsize=8)
     fig.tight_layout()
     fig.savefig(outpath, dpi=200)
     plt.close(fig)

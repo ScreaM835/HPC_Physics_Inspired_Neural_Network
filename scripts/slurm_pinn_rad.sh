@@ -1,16 +1,16 @@
 #!/bin/bash
 # ============================================================
 # SLURM Job: PINN Training (CPU) + QNM extraction
-# Supports checkpointing: resubmit with same script to resume.
+# RAD adaptive sampling + exponential reweighting on base FNN architecture.
 # ============================================================
-#SBATCH --job-name=qnm_pinn_refined
-#SBATCH --output=qnm_pinn_refined_%j.out
-#SBATCH --error=qnm_pinn_refined_%j.err
+#SBATCH --job-name=qnm_pinn_rad
+#SBATCH --output=qnm_pinn_%j.out
+#SBATCH --error=qnm_pinn_%j.err
 #SBATCH --account=fergusson-sl3-cpu
 #SBATCH --partition=icelake
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --time=08:00:00
+#SBATCH --cpus-per-task=72
+#SBATCH --time=12:00:00
 #SBATCH --signal=B:USR1@300
 
 # Flush Python output immediately (so tqdm progress appears in .err)
@@ -20,15 +20,15 @@ set -e
 
 WORKDIR=/home/ycc44/project32_qnm_pinn_repo_fd_refinement/project32_qnm_pinn_improved
 VENV_DIR=/home/ycc44/project32_qnm_pinn_repo_fd_refinement/project32_qnm_pinn/venv_csd3
-CONFIG=configs/zerilli_l2_fd_refined.yaml
-CKPT_DIR="$WORKDIR/outputs/pinn/zerilli_l2_fd_refined/checkpoints"
+CONFIG=configs/zerilli_l2_rad_expweight.yaml
+CKPT_DIR="$WORKDIR/outputs/pinn/zerilli_l2_rad_expweight/checkpoints"
 
 # ---- Signal handler: save checkpoint on approaching time limit ----
 requeue_handler() {
     echo "[SIGNAL] Caught USR1 — job approaching time limit."
     echo "[SIGNAL] Checkpoint should already be saved periodically."
     echo "[SIGNAL] Resubmitting job to continue training..."
-    sbatch "$WORKDIR/scripts/slurm_pinn_refined.sh"
+    sbatch "$WORKDIR/scripts/slurm_pinn_rad.sh"
     exit 0
 }
 trap requeue_handler USR1
@@ -55,12 +55,17 @@ fi
 source "$VENV_DIR/bin/activate"
 echo "[SETUP] Python: $(python --version)"
 
+# Use all allocated cores for PyTorch intra-op parallelism
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
+echo "[SETUP] OMP_NUM_THREADS=$OMP_NUM_THREADS"
+
 # Install the improved package into the shared venv
-# Use project-local tmp dir in case /tmp is full on shared nodes
+rm -rf build/ dist/ src/*.egg-info
 export TMPDIR="$WORKDIR/.pip_tmp"
 mkdir -p "$TMPDIR"
 pip install --quiet .
-rm -rf "$TMPDIR"
+rm -rf "$TMPDIR" build/ dist/
 unset TMPDIR
 
 # GPU check
@@ -77,24 +82,22 @@ nvidia-smi 2>/dev/null || echo "(No GPU driver — running on CPU)"
 
 # --- Determine whether to resume ---
 RESUME_FLAG=""
-if ls "$CKPT_DIR"/window_*/model*.pt 1>/dev/null 2>&1; then
+if ls "$CKPT_DIR"/model*.pt 1>/dev/null 2>&1; then
     echo "[CKPT] Found existing checkpoint — will resume training"
     RESUME_FLAG="--resume"
 fi
 
-# --- Maximize CPU Utilization ---
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
-echo "[SETUP] Using $SLURM_CPUS_PER_TASK CPU threads for PyTorch"
-
 # --- Train PINN ---
 echo ""
 echo "============================================"
-echo "[PINN] Training IMPROVED PINN (zerilli_l2_fd_refined.yaml)..."
+echo "[PINN] Training FNN + RAD + Exp Reweighting..."
 echo "  Framework: DeepXDE (PyTorch backend)"
-echo "  Model: Trainable RFF + Modified MLP (Wang et al. 2021, 2023)"
-echo "  Curriculum Learning: 5 Expanding Time Windows"
-echo "  Gradient balancing: enabled (Wang et al. 2021)"
+echo "  Model: FNN [2,80,40,20,10,1], tanh, Glorot uniform"
+echo "  Config: 10k Adam + 15k L-BFGS"
+echo "  Nr=32000, Ni=800, Nb=400"
+echo "  Lambda: [100,100,100,1,100,1,1] (paper weights)"
+echo "  RAD adaptive sampling: period=1000, k=1.0, c=1.0"
+echo "  Exponential reweighting: tau_est=11.241"
 echo "  Checkpoint every 500 iters"
 if [ -n "$RESUME_FLAG" ]; then
     echo "  >>> RESUMING from checkpoint <<<"

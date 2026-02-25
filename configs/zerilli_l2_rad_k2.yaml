@@ -1,0 +1,75 @@
+# Zerilli (even parity) l=2 — RAD tuned: sharper concentration
+#
+# Same as zerilli_l2_rad.yaml but with k=2, c=0.1:
+#   k=2 squares the residual in the sampling probability, concentrating
+#   points more aggressively on high-residual regions.
+#   c=0.1 reduces the uniform exploration floor.
+
+experiment:
+  name: zerilli_l2_rad_k2
+
+physics:
+  M: 1.0
+  l: 2
+  potential: zerilli
+  pde_sign: standard
+
+domain:
+  xmin: -50.0
+  xmax: 150.0
+  tmin: 0.0
+  tmax: 50.0
+
+initial_data:
+  A: 1.0
+  x0: 4.0
+  sigma: 5.0
+  velocity_profile: outgoing
+
+fd:
+  dx: 0.2
+  dt: 0.1
+  scheme: rk4_mol
+
+pinn:
+  seed: 1234
+  dtype: float64
+
+  Nr: 32000
+  Ni: 800
+  Nb: 400
+
+  hidden_layers: [80, 40, 20, 10]
+  activation: tanh
+  output_transform: tanh_bound
+
+  lambda: [100.0, 100.0, 100.0, 1.0, 100.0, 1.0, 1.0]
+
+  tau_est: 0.0
+
+  adaptive_sampling:
+    enabled: true
+    method: RAD
+    period: 1000
+    num_candidates: 100000
+    k: 2.0
+    c: 0.1
+    eval_batch_size: 5000
+
+  adam:
+    lr: 1.0e-3
+    iters: 10000
+    resample_period: 100
+
+  lbfgs:
+    iters: 15000
+    resample_period: 100
+
+evaluation:
+  xq: 10.0
+
+qnm:
+  t_start: 10.0
+  t_end: 50.0
+  omega_theory: 0.3737
+  tau_theory: 11.241

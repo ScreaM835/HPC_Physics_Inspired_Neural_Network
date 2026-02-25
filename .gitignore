@@ -14,3 +14,11 @@ outputs/
 *.pt
 *.err
 *.out
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.nav
+*.snm
+*.toc
+*.synctex.gz

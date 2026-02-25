@@ -43,7 +43,11 @@ def main():
     )
 
     # --- Evaluate ---
-    phi_pinn = eval_on_grid(model, x=x, t=t, dtype=cfg["pinn"]["dtype"])
+    # If decay factoring is enabled, convert g -> Psi = exp(-t/tau)*g
+    df_cfg = cfg["pinn"].get("decay_factor", {})
+    df_tau = float(df_cfg.get("tau", 0.0)) if df_cfg.get("enabled", False) else 0.0
+    phi_pinn = eval_on_grid(model, x=x, t=t, dtype=cfg["pinn"]["dtype"],
+                            decay_factor_tau=df_tau)
 
     metrics = {
         "RMSD": rmsd(phi_fd, phi_pinn),

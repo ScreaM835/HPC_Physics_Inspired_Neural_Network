@@ -1,0 +1,94 @@
+# Zerilli (even parity) l=2 — RAD + Decay Factoring
+#
+# Base architecture from Patel, Laguna & Shoemaker (2024):
+#   FNN [2, 80, 40, 20, 10, 1], tanh, Glorot uniform, A*tanh(y)
+#   Paper lambda weights: [100, 100, 100, 1, 100, 1, 1]
+#
+# Improvements:
+#   1. RAD adaptive sampling (Wu et al. 2023) — period=1000, k=1, c=1
+#   2. Decay factoring: change of variable g = exp(t/tau)*Psi
+#      Solves g_tt - g_xx - (2/tau)*g_t + (V + 1/tau^2)*g = 0
+#      The network learns g which has ~constant amplitude, eliminating
+#      the 86x dynamic range that causes MSE to ignore late-time phase errors.
+
+experiment:
+  name: zerilli_l2_rad_decay
+
+physics:
+  M: 1.0
+  l: 2
+  potential: zerilli
+  pde_sign: standard
+
+domain:
+  xmin: -50.0
+  xmax: 150.0
+  tmin: 0.0
+  tmax: 50.0
+
+initial_data:
+  A: 1.0
+  x0: 4.0
+  sigma: 5.0
+  velocity_profile: outgoing
+
+fd:
+  dx: 0.2
+  dt: 0.1
+  scheme: rk4_mol
+
+pinn:
+  seed: 1234
+  dtype: float64
+
+  Nr: 32000
+  Ni: 800
+  Nb: 400
+
+  # Base paper architecture
+  hidden_layers: [80, 40, 20, 10]
+  activation: tanh
+  output_transform: tanh_bound
+
+  # Paper loss weights (Patel et al. 2024, Table 2)
+  # [Lr, Lrx, Lrt, Lic, Liv, Lbl, Lbr]
+  lambda: [100.0, 100.0, 100.0, 1.0, 100.0, 1.0, 1.0]
+
+  # Decay factoring: change of variable g = exp(t/tau)*Psi
+  # tau = theoretical QNM damping time for l=2 Schwarzschild (Leaver 1985)
+  # Network learns g (constant amplitude); output is converted back to
+  # Psi = exp(-t/tau)*g during evaluation.
+  decay_factor:
+    enabled: true
+    tau: 11.241
+
+  # No exponential reweighting (decay factoring replaces it)
+  tau_est: 0.0
+
+  # RAD adaptive sampling (Wu et al. 2023)
+  adaptive_sampling:
+    enabled: true
+    method: RAD
+    period: 1000
+    num_candidates: 100000
+    k: 1.0
+    c: 1.0
+    eval_batch_size: 5000
+
+  adam:
+    lr: 1.0e-3
+    iters: 10000
+    resample_period: 100
+
+  lbfgs:
+    iters: 15000
+    resample_period: 100
+
+evaluation:
+  xq: 10.0
+
+qnm:
+  t_start: 10.0
+  t_end: 50.0
+  omega_theory: 0.3737
+  tau_theory: 11.241
