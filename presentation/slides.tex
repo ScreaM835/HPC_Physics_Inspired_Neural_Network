@@ -846,4 +846,36 @@
   \]
 \end{frame}
 
+% --- Appendix: PINN Solution Representation ---
+\begin{frame}{Appendix: What Is the PINN Solution?}
+  \small
+  The PINN does \textbf{not} produce a closed-form expression.
+  The ``solution'' is a neural network:
+  \[
+    \Phi_{\boldsymbol{\theta}}(x,t) = A\,\tanh\!\Bigl(
+      \mathbf{W}^{(5)}\,\tanh\!\bigl(\cdots
+        \tanh\!\bigl(\mathbf{W}^{(1)}
+          \begin{pmatrix}x\\t\end{pmatrix} + \mathbf{b}^{(1)}\bigr)
+        \cdots\bigr) + \mathbf{b}^{(5)}
+    \Bigr)
+  \]
+  \begin{itemize}
+    \item 4 hidden layers: sizes $[80, 40, 20, 10]$, $\tanh$ activation.
+    \item Outer $\tanh$ bounds the output to $[-1,\,1]$.
+    \item $\boldsymbol{\theta} = \{\mathbf{W}^{(l)}, \mathbf{b}^{(l)}\}$:
+          \textbf{4,521 trainable parameters} (fixed after training).
+    \item Evaluate at \emph{any} $(x,t)$ --- no grid required.
+    \item Differentiate \emph{exactly} via automatic differentiation.
+  \end{itemize}
+
+  \medskip
+  \textbf{Key distinction:}
+  \begin{itemize}
+    \item \textbf{FD solver}: returns $\Phi$ on a discrete grid $\{x_i, t_j\}$.
+    \item \textbf{PINN}: returns a \emph{continuous function} $\Phi_{\boldsymbol{\theta}}(x,t)$
+          that can be queried at arbitrary resolution.
+    \item Neither gives a human-readable formula --- both are \emph{numerical} solutions.
+  \end{itemize}
+\end{frame}
+
 \end{document}
