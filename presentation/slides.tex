@@ -4,8 +4,16 @@
 \usetheme{Madrid}
 \usecolortheme{seahorse}
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
 \setbeamertemplate{itemize items}[circle]
+
+% ── Page numbering: main slides show "X / N", appendix shows "X" only ──
+\newcommand{\mainend}{0}
+\setbeamertemplate{footline}{%
+  \hfill%
+  \usebeamerfont{footline}%
+  \insertframenumber\,/\,\mainend%
+  \hspace*{4pt}\vskip4pt%
+}
 
 % ── Packages ─────────────────────────────────────────────────────
 \usepackage{amsmath,amssymb}
@@ -603,7 +611,19 @@
 % ══════════════════════════════════════════════════════════════════
 %  APPENDIX
 % ══════════════════════════════════════════════════════════════════
+% Save the last main-body frame number and switch footline for appendix
+\renewcommand{\mainend}{\inserttotalframenumber}
+\makeatletter
+\immediate\write\@auxout{\string\gdef\string\mainend{\the\c@framenumber}}
+\makeatother
+
 \appendix
+\setbeamertemplate{footline}{%
+  \hfill%
+  \usebeamerfont{footline}%
+  Appendix%
+  \hspace*{4pt}\vskip4pt%
+}
 
 % --- Appendix: Reproduction Run Loss ---
 \begin{frame}{Appendix: Loss History --- Reproduction Run (Uniform Sampling)}
