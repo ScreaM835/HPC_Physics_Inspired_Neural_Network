@@ -206,14 +206,15 @@
   \]
 
   \medskip
-  \begin{tabular}{@{}lll@{}}
+  \begin{tabular}{@{}llll@{}}
     \toprule
-    \textbf{Term} & \textbf{Penalises} & \textbf{Points} \\
+    \textbf{Term} & \textbf{Penalises} & \textbf{Points} & $\boldsymbol{\lambda}$ \\
     \midrule
-    $\mathcal{L}_r$ & $\Phi_{tt} - \Phi_{xx} + V\Phi \neq 0$ & $N_r = 32{,}000$ \\
-    $\mathcal{L}_{r_x},\,\mathcal{L}_{r_t}$ & Gradients of residual (gradient-enhanced \pinn{}) & same \\
-    $\mathcal{L}_{ic},\,\mathcal{L}_{iv}$ & Initial profile \& velocity mismatch & $N_i = 800$ \\
-    $\mathcal{L}_{bl},\,\mathcal{L}_{br}$ & Sommerfeld BC violations & $N_b = 400$ \\
+    $\mathcal{L}_r$ & $\Phi_{tt} - \Phi_{xx} + V\Phi \neq 0$ & $N_r = 32{,}000$ & 100 \\
+    $\mathcal{L}_{r_x},\,\mathcal{L}_{r_t}$ & Gradients of residual (gPINN) & same & 100, 100 \\
+    $\mathcal{L}_{ic}$ & Initial profile mismatch & $N_i = 800$ & 1 \\
+    $\mathcal{L}_{iv}$ & Initial velocity mismatch & same & 100 \\
+    $\mathcal{L}_{bl},\,\mathcal{L}_{br}$ & Sommerfeld BC violations & $N_b = 400$ & 1, 1 \\
     \bottomrule
   \end{tabular}
 
@@ -616,6 +617,213 @@
   \begin{center}
     \includegraphics[width=0.85\textwidth]{loss_rad.png}
   \end{center}
+\end{frame}
+
+% --- Appendix: QNM Method 1 ---
+\begin{frame}{Appendix: QNM Extraction --- Method 1 (FFT + Envelope)}
+  \small
+  Extract $\omega$ and $\tau$ \textbf{independently} from the late-time waveform
+  $\Phi(x_q,t)$.
+
+  \medskip
+  \textbf{Step 1 --- Estimate $\omega$ via FFT:}
+  \begin{enumerate}
+    \item Window the signal between $t_{\text{start}}$ and $t_{\text{end}}$; subtract the mean.
+    \item Apply a Hann window to reduce spectral leakage.
+    \item Zero-pad by $64\times$ and compute the real FFT.
+    \item Locate the magnitude peak; refine with \textbf{parabolic interpolation}
+          for sub-bin accuracy.
+    \item Convert: $\omega = 2\pi f_{\text{peak}}$.
+  \end{enumerate}
+
+  \medskip
+  \textbf{Step 2 --- Estimate $\tau$ via log-linear envelope fit:}
+  \begin{enumerate}
+    \item Find all local maxima of $|\Phi(x_q,t)|$ (envelope peaks).
+    \item Since the envelope decays as $A\,e^{-t/\tau}$, take the logarithm:
+          \[
+            \ln|y_{\text{peaks}}| = \ln A \;-\; \frac{t}{\tau}.
+          \]
+    \item A linear fit gives slope $m = -1/\tau$, hence $\tau = -1/m$.
+  \end{enumerate}
+\end{frame}
+
+% --- Appendix: QNM Method 2 ---
+\begin{frame}{Appendix: QNM Extraction --- Method 2 (Nonlinear Curve Fit)}
+  \small
+  Fit the full damped-cosine model \textbf{simultaneously} to the waveform:
+  \[
+    \Phi(x_q,t) \;\approx\; A\,e^{-t/\tau}\,\cos(\omega\,t + \phi).
+  \]
+
+  \medskip
+  \textbf{Procedure:}
+  \begin{enumerate}
+    \item Obtain initial guesses from Method~1: $\omega_0$, $\tau_0$.
+    \item Set $A_0 = \max|\Phi|$, $\phi_0 = 0$.
+    \item Run \texttt{scipy.optimize.curve\_fit} (Levenberg--Marquardt) with
+          four free parameters $(A,\,\tau,\,\omega,\,\phi)$.
+  \end{enumerate}
+
+  \medskip
+  \textbf{Advantages over Method~1:}
+  \begin{itemize}
+    \item All four parameters are fitted \textbf{jointly}, so correlations
+          between $\omega$ and $\tau$ are captured.
+    \item Uses \textbf{every data point}, not just envelope peaks
+          $\;\Rightarrow\;$ typically more accurate.
+  \end{itemize}
+
+  \medskip
+  \textbf{Disadvantage:}
+  \begin{itemize}
+    \item Requires good initial guesses; can fail to converge if the signal is
+          noisy or the window is too short.
+  \end{itemize}
+\end{frame}
+
+% --- Appendix: L-BFGS (1/3) ---
+\begin{frame}{Appendix: L-BFGS --- Motivation \& Core Idea}
+  \small
+  \textbf{Why two optimisers?}
+  \begin{itemize}
+    \item \textbf{Adam} (Phase~1): stochastic, handles noisy/flat loss landscapes well;
+          reaches a rough neighbourhood of the minimum quickly.
+    \item \textbf{L-BFGS} (Phase~2): quasi-Newton method that uses curvature
+          information to converge much faster once we are near a minimum.
+  \end{itemize}
+
+  \medskip
+  \textbf{Full BFGS recap.}\;
+  Newton's method updates parameters via
+  $\;\theta_{k+1} = \theta_k - H_k^{-1}\,\nabla\mathcal{L}_k$,
+  where $H_k$ is the Hessian.
+  Computing and inverting $H$ is $O(n^2)$ storage and $O(n^3)$ per step
+  ($n$ = number of parameters) --- \textbf{impractical for neural networks}.
+
+  \medskip
+  \textbf{BFGS} (Broyden--Fletcher--Goldfarb--Shanno) avoids forming the Hessian
+  explicitly.  Instead it maintains an \emph{approximate inverse Hessian}
+  $B_k^{-1}$ and updates it each step using only gradient differences:
+  \[
+    s_k = \theta_{k+1} - \theta_k,\qquad
+    y_k = \nabla\mathcal{L}_{k+1} - \nabla\mathcal{L}_k.
+  \]
+\end{frame}
+
+% --- Appendix: L-BFGS (2/3) ---
+\begin{frame}{Appendix: L-BFGS --- The BFGS Update}
+  \small
+  The rank-2 update of the \emph{approximate inverse Hessian} $B_k^{-1}$:
+  \[
+    B_{k+1}^{-1} = \bigl(I - \rho_k\,s_k\,y_k^T\bigr)\,B_k^{-1}\,\bigl(I - \rho_k\,y_k\,s_k^T\bigr) + \rho_k\,s_k\,s_k^T, \quad \rho_k = \frac{1}{y_k^T s_k}.
+  \]
+
+  This ensures $B_{k+1}$ satisfies the \textbf{secant condition}
+  $B_{k+1}\,s_k = y_k$ while staying symmetric positive-definite.
+
+  \medskip
+  The search direction is then:
+  \[
+    d_k = -B_k^{-1}\,\nabla\mathcal{L}_k
+  \]
+  followed by a \textbf{line search} along $d_k$ to find the step size.
+
+  \medskip
+  \textbf{Problem:} Still $O(n^2)$ storage for the dense matrix $B^{-1}$
+  --- too expensive when $n$ is the number of neural network weights.
+\end{frame}
+
+% --- Appendix: L-BFGS (3/3) ---
+\begin{frame}{Appendix: L-BFGS --- Limited-Memory Variant}
+  \small
+  \textbf{L-BFGS} (Limited-memory BFGS) solves the storage problem:
+  \begin{itemize}
+    \item Store only the last $m$ pairs $\{s_k, y_k\}$ (typically $m = 20\text{--}50$).
+    \item Reconstruct the matrix--vector product $B_k^{-1}\nabla\mathcal{L}$
+          on-the-fly via a \textbf{two-loop recursion} --- never form $B^{-1}$.
+    \item Storage: $O(mn)$ instead of $O(n^2)$; each step is $O(mn)$.
+  \end{itemize}
+
+  \medskip
+  \textbf{Two-loop recursion} (Nocedal 1980):
+  \begin{enumerate}
+    \item \emph{Backward pass}: for $i = k\!-\!1,\dots,k\!-\!m$, compute
+          scalar $\alpha_i = \rho_i\,s_i^T q$ and set $q \leftarrow q - \alpha_i\,y_i$.
+    \item Scale: $r \leftarrow H_k^0\,q$ \;(diagonal initialisation).
+    \item \emph{Forward pass}: for $i = k\!-\!m,\dots,k\!-\!1$, set
+          $r \leftarrow r + s_i(\alpha_i - \rho_i\,y_i^T r)$.
+    \item Search direction: $d_k = -r$.
+  \end{enumerate}
+
+  \medskip
+  \textbf{In our pipeline:}
+  \begin{itemize}
+    \item Adam runs for 10\,k steps $\;\Rightarrow\;$ L-BFGS refines for 15\,k steps.
+    \item L-BFGS uses \emph{full-batch} gradients (all 33\,600 points), giving
+          accurate curvature estimates.
+    \item Typically reduces the loss by a further $1$--$2$ orders of magnitude.
+  \end{itemize}
+\end{frame}
+
+% --- Appendix: FD (1/2) ---
+\begin{frame}{Appendix: Finite Difference Solver --- Method of Lines}
+  \small
+  Rewrite the PDE $\;\Phi_{tt} - \Phi_{xx} + V\Phi = 0\;$ as a \textbf{first-order system}:
+  \[
+    u = \Phi,\qquad v = \Phi_t,\qquad
+    \begin{cases}
+      u_t = v, \\
+      v_t = u_{xx} - V(x)\,u.
+    \end{cases}
+  \]
+
+  \medskip
+  \textbf{Spatial discretisation} (2nd-order central differences):
+  \[
+    u_{xx}\big|_i \;\approx\; \frac{u_{i+1} - 2u_i + u_{i-1}}{\Delta x^2},
+    \qquad 1 \le i \le N_x - 2.
+  \]
+  At boundaries ($i=0$ and $i=N_x\!-\!1$): 2nd-order \textbf{one-sided} stencils, e.g.
+  \[
+    u_{xx}\big|_0 \;\approx\; \frac{2u_0 - 5u_1 + 4u_2 - u_3}{\Delta x^2}.
+  \]
+
+  \medskip
+  This converts the PDE into a system of ODEs in time:
+  $\;\dot{\mathbf{U}}(t) = \mathbf{F}\bigl(\mathbf{U}(t)\bigr)$,
+  where $\mathbf{U} = (u_0,\dots,u_{N_x-1},\;v_0,\dots,v_{N_x-1})$.
+\end{frame}
+
+% --- Appendix: FD (2/2) ---
+\begin{frame}{Appendix: Finite Difference Solver --- RK4 \& Boundary Conditions}
+  \small
+  \textbf{Time integration --- Classical RK4:}
+  \[
+    \mathbf{U}^{n+1} = \mathbf{U}^n + \tfrac{\Delta t}{6}\bigl(
+      \mathbf{k}_1 + 2\mathbf{k}_2 + 2\mathbf{k}_3 + \mathbf{k}_4
+    \bigr),
+  \]
+  where
+  $\mathbf{k}_1 = \mathbf{F}(\mathbf{U}^n)$,\;
+  $\mathbf{k}_2 = \mathbf{F}(\mathbf{U}^n + \tfrac{\Delta t}{2}\mathbf{k}_1)$,\; etc.
+
+  4th-order accuracy in time; requires $\Delta t / \Delta x \le 1$ (CFL condition).
+  We use $\Delta x = 0.2M$, $\Delta t = 0.1M$ $\;\Rightarrow\;$ CFL ratio $= 0.5$.
+
+  \medskip
+  \textbf{Sommerfeld radiative BCs} (applied at every RK4 sub-step):
+  \begin{align*}
+    \text{Left}\;(x\to-\infty) &:\; (\partial_t - \partial_x)\Phi = 0
+      \;\;\Rightarrow\;\; v_0 = u_x\big|_0, \\
+    \text{Right}\;(x\to+\infty) &:\; (\partial_t + \partial_x)\Phi = 0
+      \;\;\Rightarrow\;\; v_{N_x-1} = -u_x\big|_{N_x-1}.
+  \end{align*}
+  Spatial derivatives $u_x$ at boundaries use 2nd-order one-sided stencils:
+  \[
+    u_x\big|_0 \approx \frac{-3u_0 + 4u_1 - u_2}{2\Delta x},\qquad
+    u_x\big|_{N_x-1} \approx \frac{3u_{N_x-1} - 4u_{N_x-2} + u_{N_x-3}}{2\Delta x}.
+  \]
 \end{frame}
 
 \end{document}
